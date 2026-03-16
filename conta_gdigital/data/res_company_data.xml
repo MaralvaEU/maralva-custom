@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Forzar País y Moneda en la compañía principal (ID 1) -->
+        <record id="base.main_company" model="res.company">
+            <field name="country_id" ref="base.es"/>
+            <field name="currency_id" ref="base.EUR"/>
+            <field name="paperformat_id" ref="base.paperformat_euro"/>
+        </record>
+
+        <!-- Activar el Euro si no lo está -->
+        <record id="base.EUR" model="res.currency">
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

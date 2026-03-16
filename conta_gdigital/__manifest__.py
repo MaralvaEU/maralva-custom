@@ -13,6 +13,7 @@
 	],
 	'data': [
 		'security/ir.model.access.csv',
+		'data/res_company_data.xml',
 	],
 	'installable': True,
 	'auto_install': False,
