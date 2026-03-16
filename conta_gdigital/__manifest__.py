@@ -1,6 +1,6 @@
 {
 	'name': 'Conta Gdigital',
-	'version': '18.0.1.0.0',
+	'version': '19.0.1.0.0',
 	'summary': 'Pack estándard de Contabilidad - GDigital',
 	'category': 'Accounting',
 	'author': 'Juan N. Martínez -GDigital',
