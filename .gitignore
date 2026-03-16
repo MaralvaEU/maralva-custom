@@ -1,0 +1,32 @@
+a el archivo nano /opt/odoo/18/gdigital-custom/.gitignore y pega este contenido:
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+env/
+venv/
+bin/
+lib/
+develop-eggs/
+eggs/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Odoo específico
+*.log
+*.conf
+/filestore/
+/sessions/
+
+# Editores y Sistema
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
