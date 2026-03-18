@@ -36,7 +36,6 @@
         'website_crm',
         'website_forum',
         'website_google_map',
-        'website_hr_recruitment',
         'website_jitsi',
         'website_partner',
         'website_payment',
