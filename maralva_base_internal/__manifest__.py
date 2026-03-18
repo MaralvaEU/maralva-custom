@@ -47,7 +47,6 @@
         'hr_skills_slides',
         'hr_timesheet',
         'hr_timesheet_attendance',
-        'knowledge',
         'l10n_es',
         'l10n_es_edi_verifactu',
         'mail',
