@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="0">
+    <data noupdate="1">
         <record id="base.main_company" model="res.company" forcecreate="1">
             <field name="country_id" ref="base.es"/>
             <field name="currency_id" ref="base.EUR"/>
-			<field name="logo_id" type="base64" file="maralva_base_internal/static/description/icon.png"/>
+			<field name="logo" type="base64" file="maralva_base_internal/static/description/icon.png"/>
         </record>
     </data>
 </odoo>
