@@ -1,18 +1,17 @@
 {
-    'name': 'Maralva Pack - maralva export import igic',
+    'name': 'Maralva - Importación de impuestos IGIC (Canarias)',
     'version': '19.0.1.0.0',
-    'summary': 'Pack maestro Maralva para 19',
+    'summary': 'Añade la configuración de impuestos IGIC a una compañía/sucursal con localización canaria',
     'author': 'Maralva',
     'license': 'AGPL-3',
     'depends': [
-        'base',
-        'base_import',
+        'account',
         'l10n_es',
     ],
     'data': [
         'security/ir.model.access.csv',
-        'data/res_company_data.xml',
     ],
+    'post_init_hook': 'post_init_hook',
     'installable': True,
-    'application': True,
+    'application': False,
 }
