@@ -8,6 +8,8 @@
         'base',
         'contacts',
         'account',
+        'base_vat',
+        'partner_vat_unique',
         'maralva_migration_base',
     ],
     'external_dependencies': {
@@ -16,6 +18,8 @@
     'data': [
         'security/ir.model.access.csv',
         'data/maralva_migration_import_group_data.xml',
+        'data/maralva_migration_contacts_sheet_config_data.xml',
+        'views/maralva_migration_contacts_sheet_config_views.xml',
     ],
     'installable': True,
     'application': False,

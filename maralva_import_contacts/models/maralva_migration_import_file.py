@@ -16,17 +16,6 @@ SOURCE_APP = 'Sage'
 # empieza por dígito y un NIE (extranjero) por X/Y/Z.
 INDIVIDUAL_VAT_RE = re.compile(r'^[0-9XYZxyz]')
 
-# Configuración específica de cada hoja de origen: qué columna identifica el
-# fichero como clientes o proveedores (para autodetectarlo por cabecera, sin
-# que el usuario tenga que indicarlo), qué columna es el ID externo y qué
-# columna usar como calle. En el export de Sage el mismo nombre de columna
-# ('Dom. recibo') no significa lo mismo en clientes (ahí es un indicador, no
-# texto) que en proveedores (ahí sí es la dirección).
-SHEET_CONFIG = {
-    'clientes': {'code_field': 'Cód. cliente', 'street_field': 'Domicilio', 'rank_field': 'customer_rank'},
-    'proveedores': {'code_field': 'Cód. proveedor', 'street_field': 'Dom. recibo', 'rank_field': 'supplier_rank'},
-}
-
 
 class MaralvaMigrationImportFile(models.Model):
     _inherit = 'maralva.migration.import.file'
@@ -69,17 +58,19 @@ class MaralvaMigrationImportFile(models.Model):
             self.check_state = 'checked_error'
             return
 
+        sheet_configs = self.env['maralva.migration.contacts.sheet.config'].search([])
+
         header = [str(cell).strip() if cell else '' for cell in rows[0]]
-        source_model = self._detect_sage_source_model(header, rows)
-        if not source_model or 'Razón social' not in header:
+        config = self._detect_sage_sheet_config(header, rows, sheet_configs)
+        if not config or 'Razón social' not in header:
             batch.log_error(
                 f"El fichero '{self.filename}' no tiene columnas de clientes ni de "
                 f"proveedores de Sage reconocibles.")
             self.check_state = 'checked_error'
             return
 
-        config = SHEET_CONFIG[source_model]
-        code_field = config['code_field']
+        source_model = config.source_model
+        code_field = config.code_field
         has_error = False
 
         for row in rows[1:]:
@@ -136,42 +127,35 @@ class MaralvaMigrationImportFile(models.Model):
                 res_model='res.partner', source_id=code)
 
     def _build_sage_partner_vals(self, company, data, name, vat, config):
+        # Se escriben todos los campos que vienen en el origen, vacíos
+        # incluidos (igual que el importador estándar de Odoo): si un campo
+        # ya tenía valor y el fichero reenviado lo trae vacío, se vacía.
         vals = {
             'name': name,
             'company_id': company.id,
-            config['rank_field']: 1,
+            config.rank_field: 1,
+            'vat': vat,
+            'phone': self._sage_clean(data.get('Teléfono')),
+            'email': self._sage_clean(data.get('Correo Electrónico1')),
+            'city': self._sage_clean(data.get('Municipio')),
+            'street': self._sage_clean(data.get(config.street_field)),
+            'zip': self._sage_clean(data.get('Cód. postal')),
         }
         if vat:
-            vals['vat'] = vat
             vals['company_type'] = 'person' if INDIVIDUAL_VAT_RE.match(vat) else 'company'
 
-        phone = self._sage_clean(data.get('Teléfono'))
-        if phone:
-            vals['phone'] = phone
-        email = self._sage_clean(data.get('Correo Electrónico1'))
-        if email:
-            vals['email'] = email
-        city = self._sage_clean(data.get('Municipio'))
-        if city:
-            vals['city'] = city
-        street = self._sage_clean(data.get(config['street_field']))
-        if street:
-            vals['street'] = street
-        zip_code = self._sage_clean(data.get('Cód. postal'))
-        if zip_code:
-            vals['zip'] = zip_code
-
         provincia = self._sage_clean(data.get('Provincia'))
+        spain = self.env.ref('base.es')
+        vals['country_id'] = spain.id
+        state = False
         if provincia:
-            spain = self.env.ref('base.es')
             # 'ilike' (contiene), no exacto: varias provincias de Odoo llevan
             # nombre doble, ej. "A Coruña (La Coruña)", "Bizkaia (Vizcaya)".
             state = self.env['res.country.state'].search([
                 ('country_id', '=', spain.id),
                 ('name', 'ilike', provincia),
             ], limit=1)
-            vals['country_id'] = spain.id
-            vals['state_id'] = state.id if state else False
+        vals['state_id'] = state.id if state else False
 
         return vals
 
@@ -207,22 +191,24 @@ class MaralvaMigrationImportFile(models.Model):
             })
 
     @staticmethod
-    def _detect_sage_source_model(header, rows):
-        """Detecta si la hoja es de clientes o de proveedores mirando qué columna de
-        código tiene realmente datos, no solo si la columna existe: Sage incluye en
-        cada hoja una columna de referencia cruzada con el nombre de la otra ('Cód.
-        cliente' también aparece, vacía, en el export de proveedores, y viceversa)."""
-        best_model, best_count = None, 0
-        for key, cfg in SHEET_CONFIG.items():
-            code_field = cfg['code_field']
+    def _detect_sage_sheet_config(header, rows, sheet_configs):
+        """Detecta qué configuración de hoja (clientes/proveedores, ver
+        maralva.migration.contacts.sheet.config) corresponde al fichero,
+        mirando qué columna de ID externo tiene realmente datos, no solo si
+        la columna existe: Sage incluye en cada hoja una columna de
+        referencia cruzada con el nombre de la otra ('Cód. cliente' también
+        aparece, vacía, en el export de proveedores, y viceversa)."""
+        best_config, best_count = None, 0
+        for config in sheet_configs:
+            code_field = config.code_field
             if code_field not in header:
                 continue
             idx = header.index(code_field)
             non_empty = sum(
                 1 for row in rows[1:] if idx < len(row) and row[idx] not in (None, ''))
             if non_empty > best_count:
-                best_model, best_count = key, non_empty
-        return best_model
+                best_config, best_count = config, non_empty
+        return best_config
 
     @staticmethod
     def _sage_clean(value):

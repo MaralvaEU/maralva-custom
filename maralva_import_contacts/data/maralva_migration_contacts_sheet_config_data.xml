@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="sheet_config_clientes" model="maralva.migration.contacts.sheet.config">
+            <field name="name">Clientes</field>
+            <field name="source_model">clientes</field>
+            <field name="code_field">Cód. cliente</field>
+            <field name="street_field">Domicilio</field>
+            <field name="rank_field">customer_rank</field>
+        </record>
+        <record id="sheet_config_proveedores" model="maralva.migration.contacts.sheet.config">
+            <field name="name">Proveedores</field>
+            <field name="source_model">proveedores</field>
+            <field name="code_field">Cód. proveedor</field>
+            <field name="street_field">Dom. recibo</field>
+            <field name="rank_field">supplier_rank</field>
+        </record>
+    </data>
+</odoo>

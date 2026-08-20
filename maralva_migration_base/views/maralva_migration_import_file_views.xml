@@ -25,7 +25,7 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="filename" readonly="1"/>
+                            <field name="filename"/>
                             <field name="file" filename="filename"/>
                             <field name="file_type" readonly="1"/>
                             <field name="source_app"/>

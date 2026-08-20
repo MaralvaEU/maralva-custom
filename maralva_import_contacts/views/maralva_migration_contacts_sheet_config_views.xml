@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_maralva_migration_contacts_sheet_config_list" model="ir.ui.view">
+        <field name="name">maralva.migration.contacts.sheet.config.list</field>
+        <field name="model">maralva.migration.contacts.sheet.config</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="code_field"/>
+                <field name="street_field"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_maralva_migration_contacts_sheet_config" model="ir.actions.act_window">
+        <field name="name">Columnas de las hojas Sage (clientes/proveedores)</field>
+        <field name="res_model">maralva.migration.contacts.sheet.config</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <menuitem id="menu_maralva_migration_contacts_sheet_config"
+        name="Columnas Sage (clientes/proveedores)"
+        parent="maralva_migration_base.menu_maralva_migration_root"
+        action="action_maralva_migration_contacts_sheet_config"
+        groups="base.group_system"
+        sequence="20"/>
+
+</odoo>
