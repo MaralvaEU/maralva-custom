@@ -15,7 +15,7 @@
                 </group>
                 <field name="line_ids">
                     <list editable="bottom">
-                        <field name="group_id" readonly="1"/>
+                        <field name="group_id"/>
                         <field name="selected"/>
                         <field name="related_line_ids" widget="many2many_tags"
                             domain="[('group_id', '=', group_id)]"/>
