@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="import_group_contacts" model="maralva.migration.import.group">
+        <field name="code">contacts</field>
+        <field name="name">Contactos</field>
+        <field name="action_method">action_import_sage_contacts</field>
+    </record>
+
+</odoo>

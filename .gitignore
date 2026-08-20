@@ -30,3 +30,7 @@ var/
 *.swp
 *~
 .DS_Store
+
+# Datos de ejemplo reales de clientes (Sage, etc.) — nunca a git
+**/samples/*
+!**/samples/.gitkeep

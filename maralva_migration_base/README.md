@@ -11,12 +11,47 @@ Objetivo: que cada instalación de Odoo active solo los módulos de las áreas
 que esa empresa/BD realmente necesite migrar, compartiendo todos el mismo
 mecanismo de lotes, mapeo de IDs y log de incidencias.
 
-## Contenido (v1)
+## Contenido
 
-Esta primera versión cubre solo la infraestructura de datos; el asistente
-(wizard) genérico de carga queda pendiente para cuando exista un primer caso
-real que lo use (`maralva_import_contacts`) y pueda dar forma a su diseño.
-
+- **`maralva.migration.import.file`** (fichero subido) + **`maralva.migration.import.file.target`**
+  (tabla destino de ese fichero): registro común de los ficheros que se suben
+  para migrar datos, independiente de qué módulo de área los procese.
+  Guarda el archivo (descargable), su nombre y tipo (calculado de la
+  extensión), la aplicación de origen, una descripción editable y el estado
+  de comprobación (`Subido` / `Comprobado con errores` / `Totalmente
+  comprobado`). Un mismo fichero puede alimentar varias tablas de Odoo a la
+  vez (ej. un CLIENTES.xlsx que crea contactos y, si trae IBAN, también
+  cuentas bancarias): cada tabla destino es una línea propia con su nombre
+  técnico (`res_model`), su nombre legible (calculado vía `ir.model`) y su
+  propio estado de importación (`Sin importar` / `Parcial` / `Total` / `Con
+  errores`). Vista de lista en *Ajustes > Técnico > Migraciones Maralva >
+  Ficheros subidos*.
+  - **Compañía del fichero** (`company_mode`): `Compañía única` (caso normal,
+    un solo `company_id` fijo para todo el fichero) o `Multicompañía` — el
+    fichero mezcla datos de varias compañías de origen (ej. varias empresas
+    dentro del mismo Sage) y hace falta indicar **a mano** en
+    `maralva.migration.import.file.company` qué compañía de Odoo corresponde
+    a cada código de compañía de origen (ej. el `Cód. empresa` de Sage). Cada
+    módulo de área es responsable de leer esa relación fila a fila al
+    importar; el modelo base solo guarda la relación, no sabe qué columna del
+    fichero es el código de compañía (eso lo decide cada `maralva_import_*`).
+- **`maralva.migration.import.group`** (+ `...group.line` para sus tablas
+  relacionadas): registro de qué "grupos principales" de importación existen
+  — uno por módulo `maralva_import_*` instalado (ej. `contacts` →
+  "Contactos") — y qué método de `maralva.migration.import.file` ejecuta la
+  importación de ese grupo. Cada módulo de área declara su propio grupo como
+  dato (XML), sin que este módulo base necesite conocer nada específico de
+  ese área. Las líneas de "tablas relacionadas" (ej. Bancos, Modos de pago
+  para el grupo Contactos) son opcionales y quedan vacías hasta que el módulo
+  de área las registre con datos reales que las respalden.
+- **`maralva.migration.import.wizard`** (+ `...wizard.line`): asistente
+  genérico que aparece como acción al seleccionar uno o varios ficheros en
+  *Ficheros subidos*. Muestra la aplicación de origen de los seleccionados
+  (con aviso si no coincide entre todos) y la lista de grupos de importación
+  disponibles, cada uno con su casilla y, si tiene tablas relacionadas
+  declaradas, un multi-selección para elegir cuáles importar también. Al
+  confirmar, llama dinámicamente al `action_method` de cada grupo/tabla
+  relacionada elegidos sobre los ficheros seleccionados.
 - **`maralva.migration.batch`** (lote de migración): agrupa una ejecución de
   migración — aplicación de origen, compañía destino, estado y fecha — y da
   acceso a sus mapeos e incidencias asociados. Incluye `log_info()`,

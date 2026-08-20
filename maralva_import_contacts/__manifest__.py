@@ -7,10 +7,15 @@
     'depends': [
         'base',
         'contacts',
+        'account',
         'maralva_migration_base',
     ],
+    'external_dependencies': {
+        'python': ['openpyxl'],
+    },
     'data': [
         'security/ir.model.access.csv',
+        'data/maralva_migration_import_group_data.xml',
     ],
     'installable': True,
     'application': False,
