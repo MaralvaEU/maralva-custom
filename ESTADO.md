@@ -2,6 +2,8 @@
 
 > Este archivo es la memoria compartida entre sesiones de trabajo sobre los módulos custom de Maralva. Convención: entradas en orden cronológico inverso (la más reciente arriba). No borrar histórico salvo limpieza puntual acordada.
 
+> **Convención de ramas (desde 2026-08-20)**: el trabajo de desarrollo se hace en `19.0-JNMA` (creada desde `19.0`, checkout actual en la máquina de desarrollo), no directamente en `19.0` — así se puede seguir actualizando/probando en la máquina de producción (que sigue en `19.0`) sin riesgo de romperla con cambios a medio probar. Fusionar `19.0-JNMA` → `19.0` solo cuando algo esté validado.
+
 ## Módulos en curso
 
 - **`maralva_export_import_igic`**: ✅ **implementado y validado** (ver Decisiones tomadas e Histórico 2026-08-19). Al instalar (`post_init_hook`), añade a la compañía activa la configuración de impuestos IGIC (localización canaria) reutilizando el parser de plantillas fiscales del core sobre la capa `es_canary_common` de `l10n_es`. Caso real que lo motiva: implantación en una empresa con sede en Península (localización España, PGC Completo) que tiene una sucursal en Canarias.
