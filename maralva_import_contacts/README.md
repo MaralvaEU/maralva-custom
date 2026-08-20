@@ -1,12 +1,16 @@
-# Maralva Pack - maralva import contacts
+# Maralva - Importación de contactos
 
 ## Descripción
-Pack generado automáticamente para Odoo 19.
-Configuración basada en: pack_maralva_base19.txt
 
-## Contenido
-- Localización española (ES/EUR).
-- Selección de módulos OCA y Core según estrategia Maralva.
+Primer módulo de la familia `maralva_import_*`: migración de contactos
+(`res.partner`) desde una aplicación externa. Depende técnicamente de
+[`maralva_migration_base`](../maralva_migration_base/README.md) para la
+trazabilidad de la migración (lotes, mapeo de IDs externos, log de
+incidencias) en vez de implementarla por su cuenta.
 
----
-*Fábrica de Software Maralva*
+## Estado
+
+Scaffold sin lógica propia todavía — solo la dependencia de
+`maralva_migration_base` está enganchada. Pendiente de definir, con datos
+reales de la aplicación de origen: formato de los datos a importar (CSV,
+XLSX...), qué campos de contacto mapear y el asistente (wizard) de carga.

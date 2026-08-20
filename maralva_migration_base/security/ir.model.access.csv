@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_maralva_migration_batch_system,maralva.migration.batch system,model_maralva_migration_batch,base.group_system,1,1,1,1
+access_maralva_migration_id_map_system,maralva.migration.id.map system,model_maralva_migration_id_map,base.group_system,1,1,1,1
+access_maralva_migration_log_system,maralva.migration.log system,model_maralva_migration_log,base.group_system,1,1,1,1
