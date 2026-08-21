@@ -10,7 +10,7 @@
                     <field name="source_app_warning" readonly="1" nolabel="1"/>
                 </div>
                 <group>
-                    <field name="file_ids" readonly="1" widget="many2many_tags"/>
+                    <field name="file_ids" widget="many2many_tags"/>
                     <field name="source_app" readonly="1"/>
                 </group>
                 <field name="line_ids">
