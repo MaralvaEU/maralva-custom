@@ -115,7 +115,15 @@ class MaralvaMigrationImportFile(models.Model):
         res_id = id_map.get_res_id(SOURCE_APP, source_model, code, 'res.partner')
         partner = partner_model.browse(res_id) if res_id else partner_model
 
-        vat = self._normalize_sage_vat(batch, code, data.get('CIF/DNI'))
+        plain_vat = self._normalize_sage_vat(batch, code, data.get('CIF/DNI'))
+        # El prefijo internacional del NIF depende del país del partner, no es
+        # un "ES" fijo -- hoy el país siempre se resuelve a España (ver más
+        # abajo), así que en la práctica coincide, pero queda ligado al país
+        # en vez de hardcodeado aparte. Sin el prefijo, no se puede fusionar
+        # con partners ya existentes en formato internacional (ej. el AEAT
+        # que traen los módulos OCA de Hacienda, "ESQ2826000H").
+        country = self.env.ref('base.es')
+        vat = f"{country.code}{plain_vat}" if plain_vat else False
         if not partner and vat:
             partner = partner_model.search([
                 ('vat', '=', vat),
@@ -127,7 +135,7 @@ class MaralvaMigrationImportFile(models.Model):
                     f"(id {partner.id}); se fusiona en vez de duplicar.",
                     res_model='res.partner', source_id=code)
 
-        vals = self._build_sage_partner_vals(company, data, name, vat, config)
+        vals = self._build_sage_partner_vals(company, data, name, vat, plain_vat, country, config)
 
         if partner:
             partner.write(vals)
@@ -141,7 +149,7 @@ class MaralvaMigrationImportFile(models.Model):
                 f"No se encontró la provincia '{data.get('Provincia')}' en España.",
                 res_model='res.partner', source_id=code)
 
-    def _build_sage_partner_vals(self, company, data, name, vat, config):
+    def _build_sage_partner_vals(self, company, data, name, vat, plain_vat, country, config):
         # Se escriben todos los campos que vienen en el origen, vacíos
         # incluidos (igual que el importador estándar de Odoo): si un campo
         # ya tenía valor y el fichero reenviado lo trae vacío, se vacía.
@@ -150,14 +158,18 @@ class MaralvaMigrationImportFile(models.Model):
             'company_id': company.id,
             config.rank_field: 1,
             'vat': vat,
+            'country_id': country.id,
             'phone': self._sage_clean(data.get('Teléfono')),
             'email': self._sage_clean(data.get('Correo Electrónico1')),
             'city': self._sage_clean(data.get('Municipio')),
             'street': self._sage_clean(data.get(config.street_field)),
             'zip': self._sage_clean(data.get('Cód. postal')),
         }
-        if vat:
-            vals['company_type'] = 'person' if INDIVIDUAL_VAT_RE.match(vat) else 'company'
+        if plain_vat:
+            # La detección persona/empresa mira el NIF/CIF sin el prefijo de
+            # país -- con el prefijo puesto, el primer carácter sería siempre
+            # la letra del país y la detección saldría siempre "empresa".
+            vals['company_type'] = 'person' if INDIVIDUAL_VAT_RE.match(plain_vat) else 'company'
 
         tag_name = RANK_FIELD_TAG.get(config.rank_field)
         if tag_name:
@@ -165,14 +177,12 @@ class MaralvaMigrationImportFile(models.Model):
             vals['category_id'] = [(4, category.id)]
 
         provincia = self._sage_clean(data.get('Provincia'))
-        spain = self.env.ref('base.es')
-        vals['country_id'] = spain.id
         state = False
         if provincia:
             # 'ilike' (contiene), no exacto: varias provincias de Odoo llevan
             # nombre doble, ej. "A Coruña (La Coruña)", "Bizkaia (Vizcaya)".
             state = self.env['res.country.state'].search([
-                ('country_id', '=', spain.id),
+                ('country_id', '=', country.id),
                 ('name', 'ilike', provincia),
             ], limit=1)
         vals['state_id'] = state.id if state else False
