@@ -16,6 +16,13 @@ SOURCE_APP = 'Sage'
 # empieza por dígito y un NIE (extranjero) por X/Y/Z.
 INDIVIDUAL_VAT_RE = re.compile(r'^[0-9XYZxyz]')
 
+# Un NIF de persona física son siempre 8 dígitos + letra de control. Algunos
+# NIF de Sage vienen tecleados sin el cero inicial (ej. '9355112T' en vez de
+# '09355112T', confirmado real: la celda es texto, no un problema de Excel) —
+# se reconstruye porque la longitud del NIF es un dato fijo, no una
+# suposición, pero se deja aviso en el log para que el cliente lo revise.
+NIF_RE = re.compile(r'^(\d+)([A-Za-z])$')
+
 
 class MaralvaMigrationImportFile(models.Model):
     _inherit = 'maralva.migration.import.file'
@@ -100,7 +107,7 @@ class MaralvaMigrationImportFile(models.Model):
         res_id = id_map.get_res_id(SOURCE_APP, source_model, code, 'res.partner')
         partner = partner_model.browse(res_id) if res_id else partner_model
 
-        vat = self._sage_clean(data.get('CIF/DNI'))
+        vat = self._normalize_sage_vat(batch, code, data.get('CIF/DNI'))
         if not partner and vat:
             partner = partner_model.search([
                 ('vat', '=', vat),
@@ -216,3 +223,20 @@ class MaralvaMigrationImportFile(models.Model):
             return False
         text = str(value).strip()
         return text or False
+
+    def _normalize_sage_vat(self, batch, code, value):
+        text = self._sage_clean(value)
+        if not text:
+            return text
+        match = NIF_RE.match(text)
+        if match:
+            digits, letter = match.groups()
+            if len(digits) < 8:
+                corrected = f"{digits.zfill(8)}{letter.upper()}"
+                batch.log_warning(
+                    f"NIF '{text}' corregido a '{corrected}' (le faltaba el cero "
+                    f"inicial: un NIF español tiene siempre 8 dígitos) — revisar el "
+                    f"dato de origen.",
+                    res_model='res.partner', source_id=code)
+                text = corrected
+        return text
