@@ -31,6 +31,19 @@ RANK_FIELD_TAG = {
     'supplier_rank': 'Proveedor',
 }
 
+# Prefijos de 'Cód. contable' (Sage) que identifican la cuenta genérica a
+# cobrar/a pagar del contacto. Igual que en el import del diario, una cuenta
+# con desarrollo (ej. '430030000') se colapsa siempre a su genérica de 3
+# dígitos ('430000000'), nunca a nivel de 4 dígitos -- son familias de
+# cuenta distintas, no una sola con más o menos detalle.
+RECEIVABLE_ACCOUNT_PREFIXES = ('430', '433')
+PAYABLE_ACCOUNT_PREFIXES = ('400', '410')
+
+# Posición fiscal "España Península" en proasurjnma -- se inyecta por
+# defecto en todo contacto español que no traiga ya una posición fiscal
+# fijada (ver ESTADO.md).
+DEFAULT_FISCAL_POSITION_ID = 69
+
 
 class MaralvaMigrationImportFile(models.Model):
     _inherit = 'maralva.migration.import.file'
@@ -110,7 +123,11 @@ class MaralvaMigrationImportFile(models.Model):
         company = self._resolve_sage_row_company(data)
 
         id_map = self.env['maralva.migration.id.map']
-        partner_model = self.env['res.partner']
+        # company_dependent (property_account_receivable_id/payable_id/
+        # property_account_position_id): hay que leerlos y escribirlos en el
+        # contexto de la compañía correcta, o se lee/escribe el valor de la
+        # compañía activa del entorno, no el de esta fila.
+        partner_model = self.env['res.partner'].with_company(company)
 
         res_id = id_map.get_res_id(SOURCE_APP, source_model, code, 'res.partner')
         partner = partner_model.browse(res_id) if res_id else partner_model
@@ -143,6 +160,8 @@ class MaralvaMigrationImportFile(models.Model):
             partner = partner_model.create(vals)
 
         id_map.set_mapping(SOURCE_APP, source_model, code, 'res.partner', partner.id, batch=batch)
+
+        self._apply_sage_partner_property_accounts(partner, company, data, batch, code)
 
         if vals.get('state_id') is False and self._sage_clean(data.get('Provincia')):
             batch.log_warning(
@@ -188,6 +207,37 @@ class MaralvaMigrationImportFile(models.Model):
         vals['state_id'] = state.id if state else False
 
         return vals
+
+    def _apply_sage_partner_property_accounts(self, partner, company, data, batch, code):
+        """Fija la cuenta a cobrar/a pagar (colapsada a la genérica de 3
+        dígitos) y, por defecto, la posición fiscal 'España Península' de
+        todo contacto español que no traiga ya una -- ver comentario de las
+        constantes RECEIVABLE_/PAYABLE_ACCOUNT_PREFIXES y
+        DEFAULT_FISCAL_POSITION_ID más arriba."""
+        account_code = self._sage_clean(data.get('Cód. contable'))
+        if account_code:
+            if account_code.startswith(RECEIVABLE_ACCOUNT_PREFIXES):
+                target_field = 'property_account_receivable_id'
+            elif account_code.startswith(PAYABLE_ACCOUNT_PREFIXES):
+                target_field = 'property_account_payable_id'
+            else:
+                target_field = None
+            if target_field:
+                generic_code = account_code[:3] + '0' * 6
+                account = self.env['account.account'].with_company(company).search([
+                    ('company_ids', 'in', company.id),
+                ]).filtered(lambda a: a.code == generic_code)
+                if account:
+                    partner[target_field] = account[0].id
+                else:
+                    batch.log_warning(
+                        f"No existe en Odoo la cuenta {generic_code} (compañía "
+                        f"{company.display_name}) para fijar {target_field} de "
+                        f"{partner.display_name}.",
+                        res_model='res.partner', source_id=code)
+
+        if partner.country_id.code == 'ES' and not partner.property_account_position_id:
+            partner.property_account_position_id = DEFAULT_FISCAL_POSITION_ID
 
     def _resolve_sage_row_company(self, data):
         self.ensure_one()
