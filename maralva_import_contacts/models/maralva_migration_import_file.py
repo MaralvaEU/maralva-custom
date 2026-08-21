@@ -23,6 +23,14 @@ INDIVIDUAL_VAT_RE = re.compile(r'^[0-9XYZxyz]')
 # suposición, pero se deja aviso en el log para que el cliente lo revise.
 NIF_RE = re.compile(r'^(\d+)([A-Za-z])$')
 
+# Etiqueta de contacto a añadir según el tipo de hoja — mismo nombre que la
+# columna 'Clien./Prov.' del plan de cuentas de Sage, para que el futuro
+# módulo de contabilidad pueda reconciliar contra la misma etiqueta.
+RANK_FIELD_TAG = {
+    'customer_rank': 'Cliente',
+    'supplier_rank': 'Proveedor',
+}
+
 
 class MaralvaMigrationImportFile(models.Model):
     _inherit = 'maralva.migration.import.file'
@@ -150,6 +158,11 @@ class MaralvaMigrationImportFile(models.Model):
         }
         if vat:
             vals['company_type'] = 'person' if INDIVIDUAL_VAT_RE.match(vat) else 'company'
+
+        tag_name = RANK_FIELD_TAG.get(config.rank_field)
+        if tag_name:
+            category = self.env['res.partner']._maralva_get_or_create_category(tag_name)
+            vals['category_id'] = [(4, category.id)]
 
         provincia = self._sage_clean(data.get('Provincia'))
         spain = self.env.ref('base.es')
