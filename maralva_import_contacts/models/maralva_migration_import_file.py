@@ -25,10 +25,23 @@ NIF_RE = re.compile(r'^(\d+)([A-Za-z])$')
 
 # Etiqueta de contacto a añadir según el tipo de hoja — mismo nombre que la
 # columna 'Clien./Prov.' del plan de cuentas de Sage, para que el futuro
-# módulo de contabilidad pueda reconciliar contra la misma etiqueta.
+# módulo de contabilidad pueda reconciliar contra la misma etiqueta. Los
+# proveedores no llevan una etiqueta fija: se distinguen por el prefijo de
+# su 'Cód. contable' (ver SUPPLIER_ACCOUNT_PREFIX_TAG más abajo).
 RANK_FIELD_TAG = {
     'customer_rank': 'Cliente',
-    'supplier_rank': 'Proveedor',
+}
+
+# Etiqueta de proveedor según el prefijo de su 'Cód. contable': los de
+# cuenta 400x (proveedores de compraventa) se etiquetan 'Proveedor'; los de
+# cuenta 410x (acreedores por prestación de servicios) se etiquetan
+# 'Prov. Servicios' -- a petición explícita del usuario, a tener en cuenta
+# en toda futura importación de contactos. Un proveedor cuyo prefijo no sea
+# ninguno de los dos (ej. AEAT, 475x) se queda con la etiqueta genérica
+# 'Proveedor' por defecto.
+SUPPLIER_ACCOUNT_PREFIX_TAG = {
+    '400': 'Proveedor',
+    '410': 'Prov. Servicios',
 }
 
 # Prefijos de 'Cód. contable' (Sage) que identifican la cuenta genérica a
@@ -202,10 +215,20 @@ class MaralvaMigrationImportFile(models.Model):
             # la letra del país y la detección saldría siempre "empresa".
             vals['company_type'] = 'person' if INDIVIDUAL_VAT_RE.match(plain_vat) else 'company'
 
-        tag_name = RANK_FIELD_TAG.get(config.rank_field)
+        tag_name = self._resolve_sage_partner_tag_name(config, data)
         if tag_name:
+            category_ops = []
+            if config.rank_field == 'supplier_rank':
+                # 'Proveedor' y 'Prov. Servicios' son mutuamente excluyentes
+                # (dependen del prefijo de cuenta, que puede cambiar entre
+                # reimportaciones) -- hay que quitar la etiqueta que ya no
+                # corresponda, no solo añadir la nueva.
+                for other_tag in set(SUPPLIER_ACCOUNT_PREFIX_TAG.values()) - {tag_name}:
+                    other_category = self.env['res.partner']._maralva_get_or_create_category(other_tag)
+                    category_ops.append((3, other_category.id))
             category = self.env['res.partner']._maralva_get_or_create_category(tag_name)
-            vals['category_id'] = [(4, category.id)]
+            category_ops.append((4, category.id))
+            vals['category_id'] = category_ops
 
         provincia = self._sage_clean(data.get('Provincia'))
         state = False
@@ -219,6 +242,13 @@ class MaralvaMigrationImportFile(models.Model):
         vals['state_id'] = state.id if state else False
 
         return vals
+
+    def _resolve_sage_partner_tag_name(self, config, data):
+        if config.rank_field == 'supplier_rank':
+            account_code = self._sage_clean(data.get('Cód. contable'))
+            prefix = account_code[:3] if account_code else None
+            return SUPPLIER_ACCOUNT_PREFIX_TAG.get(prefix, 'Proveedor')
+        return RANK_FIELD_TAG.get(config.rank_field)
 
     def _apply_sage_partner_property_accounts(self, partner, company, data, batch, code):
         """Fija la cuenta a cobrar/a pagar (colapsada a la genérica de 3
