@@ -8,6 +8,9 @@
         'base',
         'account',
         'maralva_migration_base',
+        'account_statement_import_sheet_file',
+        'account_statement_import_sheet_file_xlsx',
+        'account_reconcile_oca',
     ],
     'data': [
         'security/ir.model.access.csv',
