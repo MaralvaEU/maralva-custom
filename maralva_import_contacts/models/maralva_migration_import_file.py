@@ -102,7 +102,19 @@ class MaralvaMigrationImportFile(models.Model):
         has_error = False
 
         for row in rows[1:]:
-            data = {header[i]: row[i] for i in range(len(header)) if header[i]}
+            # Sage repite alguna cabecera dos veces en el mismo export (visto
+            # real en 'Cód. contable' de PROVEEDORES.xlsx: aparece en dos
+            # columnas, la segunda siempre vacía) -- si se construyera el
+            # diccionario sin más, la columna vacía pisaría a la que sí trae
+            # dato por venir después. Se queda con el primer valor no vacío
+            # que aparezca para cada nombre de columna repetido.
+            data = {}
+            for i, key in enumerate(header):
+                if not key:
+                    continue
+                value = row[i] if i < len(row) else None
+                if key not in data or (data[key] in (None, '') and value not in (None, '')):
+                    data[key] = value
             code = self._sage_clean(data.get(code_field))
             name = self._sage_clean(data.get('Razón social'))
             if not code or not name:
