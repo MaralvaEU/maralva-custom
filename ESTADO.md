@@ -36,6 +36,7 @@
       - **Determinar el tipo de cada asiento** (grupo por `Número de asiento`) para dirigirlo al diario Odoo correcto: Operaciones varias → diario General; facturas emitidas → diario tipo Venta; facturas recibidas → diario tipo Compras. Reglas de clasificación por el patrón Debe/Haber de la línea `430`/`400`/`410` del asiento (ver Decisiones tomadas para el detalle completo con todas las excepciones).
       - **Pendiente de decidir con el usuario antes de empezar a programar**: si se sigue solo con el patrón Debe/Haber (recomendado por Claude para SERINGE, dado el bajo volumen) o si se incorporan también los libros de IVA (facturas recibidas/emitidas/intracomunitaria) como fuente de validación cruzada — el usuario no había respondido a esto cuando se pausó la sesión.
     - Validar que apertura + diario importado cuadra con `sumas y saldos 20260630`.
+8. **Módulo nuevo: doble posición fiscal** (anotado por el usuario 2026-08-22 para el futuro, sin más detalle todavía — retomar pidiendo especificación completa antes de diseñar nada). A diferencia del resto del trabajo de esta sesión (específico de la migración de SERINGE, en `19.0-proa`), este módulo se sitúa explícitamente en la rama **`19.0-JNMA`** — desarrollo general/reutilizable, no ligado a una migración de cliente concreta.
 
 ## Bugs conocidos
 
