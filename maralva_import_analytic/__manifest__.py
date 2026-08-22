@@ -9,6 +9,7 @@
         'analytic',
         'maralva_migration_base',
         'maralva_import_account',
+        'account_reconcile_analytic_tag',
     ],
     'data': [
         'security/ir.model.access.csv',
