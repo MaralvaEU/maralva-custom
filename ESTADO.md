@@ -564,4 +564,10 @@ Antes de esta ronda, el usuario pregunta por qué hay 103 códigos de proveedor 
 Con eso confirmado, el usuario decide: **fuera todos los grupos de tipo "código sin resolver", salvo los de periodicidad Anual** -- sin un proveedor identificado no compensa crear un contacto solo para un gasto que no se repite con claridad.
 
 - **Resultado**: 113 grupos más descartados (233 líneas). **Quedan 334 grupos candidatos con 2+ apariciones** (de 1.356 grupos totales tras las tres rondas de depuración: 65 Mensual, 32 Trimestral, 22 Semestral, 12 Anual, 117 Semanal/frecuente, 86 Irregular). `contratos_detectados.xlsx` regenerado.
+
+### Cuarta ronda: fuera los grupos "Único" (una sola aparición en los 3 años)
+
+El usuario pregunta qué significa la periodicidad "Único" (confirmado: literalmente un solo registro en todo el periodo 2024-2026, nunca llega a repetirse) y, confirmado eso, decide: **fuera todos**, no aportan nada a un análisis de gastos recurrentes.
+
+- **Resultado**: 1.022 grupos descartados (1.022 líneas, 1 por grupo por definición). Los grupos "Único" ya no contaban como candidatos (`clasifica_periodicidad` los excluía desde el principio de "2+ apariciones"), así que **los 334 grupos candidatos no cambian** -- el efecto de esta ronda es solo que desaparecen de "Grupos totales" y de la hoja "Detalle ocurrencias" del Excel, dejando ambos más limpios. `contratos_detectados.xlsx` regenerado.
 - **Pendiente**: más rondas de depuración del usuario (avisa de que seguirán llegando); trasladar este análisis a un módulo real (`maralva_import_contract`) cuando el resultado esté suficientemente depurado.
