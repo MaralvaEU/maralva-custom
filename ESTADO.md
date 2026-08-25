@@ -456,4 +456,25 @@ Confirmado por el usuario: Tesorería se importa como **extracto bancario** (`ac
 - **Sugerencia de partner solo cuando el asiento tiene 1 sola cuenta de tesorería y 1 sola contrapartida identificable** (cliente/proveedor/personal/retenciones) -- en cualquier otro caso (transferencias, o varias contrapartidas) se deja sin sugerir.
 - Detectado y corregido un `company_id` incorrecto en la primera pasada: el `company_id` de un extracto **sigue siempre al de su diario** (campo relacionado, no se puede forzar aparte) -- al construir por rama como el resto del diario, 3 cuentas compartidas (570000000, 572000015, 520100232) quedaron mal repartidas entre matriz y Canarias; corregido una vez confirmado que todo va a nivel de matriz.
 
-- **Pendiente**: construir la lógica de activos fijos y leasing (diferida); decidir sobre la corrección retroactiva de productos mal etiquetados en las 1.321 de Fact. recibidas Península; decidir qué hacer con `PRO 09-26`; revisar si conviene unificar los diarios generales `GENP`/`GENC`/`CAJA` (duplicados de compañía creados antes de saber que todo va a matriz) con los ya existentes en la matriz.
+- **Pendiente**: construir la lógica de activos fijos y leasing (diferida, no es prioridad ahora mismo -- antes hay otros frentes); decidir sobre la corrección retroactiva de productos mal etiquetados en las 1.321 de Fact. recibidas Península; decidir qué hacer con `PRO 09-26`; revisar si conviene unificar los diarios generales `GENP`/`GENC`/`CAJA` (duplicados de compañía creados antes de saber que todo va a matriz) con los ya existentes en la matriz.
+
+### Cierre provisional de la migración contable (2026-08-25)
+
+El usuario da por cerrada esta parte de la migración contable **a falta de una revisión más rigurosa posterior**. Estado de los diarios importados en cada empresa a fecha de hoy:
+
+| Empresa | Compañía(s) | Diario incorporado hasta |
+|---|---|---|
+| SERINGE | 5 | 30/06/2026 |
+| UTE NUNSYS | 6 | 18/08/2026 |
+| PROASUR (matriz + Península + Canarias) | 1, 2, 3 | 30/06/2026 |
+
+`PRO 09-26` se deja pendiente a propósito (existe en el Libro de IGIC pero el diario de Sage tiene un par de días menos que ese libro) -- el usuario decidirá si la mete a mano o espera a un diario más actualizado; el control de lo que queda por hacer lo lleva él mismo por número de asiento del diario, no por este fichero. La lógica de activos fijos/leasing queda aplazada, no es prioridad inmediata.
+
+### Desglose de efectos de cobro/pago a 31/12/2025 (lo que faltaba para poder cerrar)
+
+Antes de dar el cierre por bueno, el usuario recuerda que falta el desglose de efectos (igual que se hizo en UTE NUNSYS): el asiento de apertura solo lleva el saldo agregado de cada cliente/proveedor en 430/400, sin desglosar por efecto individual (nº de efecto, fecha de vencimiento) -- se construye aparte, siguiendo el mismo patrón ya usado en UTE NUNSYS (`build_desglose_efectos_nunsys.py`): un asiento de tipo `entry` en el diario general de la matriz, fechado 31/12/2025, con una línea "DESGLOSE DE EFECTOS" que revierte el agregado por (cuenta colapsada a 4 dígitos, partner) y una línea por cada efecto individual (con su `date_maturity`), de forma que el saldo neto no cambia -- solo se desglosa.
+
+- **Origen**: `EFECTOS DE COBRO.xlsx` (260 filas) y `EFECTOS DE PAGO.xlsx` (191 filas), filtradas a las de fecha de factura/emisión anterior a 2026 (150 y 43 respectivamente). A diferencia de UTE NUNSYS, aquí sí trae una columna `Código cuenta` con el código contable completo, así que se resuelve el partner directamente vía `proasur_partner_map` en vez de con diccionarios manuales.
+- **11 códigos sin correspondencia** (mismo problema de siempre: existen en CLIENTES/PROVEEDORES pero sin `Cód. contable` enlazado) -- 4 en cobro (`FORM`, `PROA CHILE, S.A.`, `MUSEUMS & EXPOS INTERNATINAL LTD`, y `430000234` que la propia razón social de origen ya indicaba como redirigida a "A 433/5423" = SERINGE-MAR, S.L., partner ya conocido) y 7 en pago (VIDRIOASTUR, ESTRUCTURAS METALICAS RUESME, BROWN TAILOR, HOTELERA ZENTRAL FORUM, NOTARIOS M.VEGA DE ANZO, ANA VALVERDE ASESORES FISCALES, REGISTRO MERCANTIL DE ASTURIAS -- este último ya existía como partner). Resueltos: 2 ya existían sin VAT (FORM, PROA CHILE -- completados), 1 ya existía con VAT (REGISTRO MERCANTIL), y se crearon 8 contactos nuevos. `FORM` (CIF egipcio) se deja sin `vat` -- el validador de Odoo lo rechaza, igual que ya pasó con el CIF chileno de PROA CHILE.
+- **2 asientos creados**: `DESGLOSE EFECTOS DE COBRO` (move 12802, 171 líneas) y `DESGLOSE EFECTOS DE PAGO` (move 12803, 65 líneas), ambos balanceados exactamente. 27 discrepancias frente al saldo de apertura marcadas con actividad de Excepción para revisión manual (mismo criterio que en UTE NUNSYS).
+- Aviso del usuario, sin acción de mi parte: al confirmar asientos aparece un error con el partner **VITROCANGA, S.L.U.** (id 43, restringido a company SERINGE) -- mismo patrón que MADERAS GALLART CABO/NAECO FIBERS, el usuario lo corrige manualmente.
