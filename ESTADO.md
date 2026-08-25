@@ -557,4 +557,11 @@ El usuario, en vez de dar más números de fila, da directamente una lista de **
 
 - **Comprobado antes de aplicar** que ningún contrato mensual ya validado (NUNSYS, EDP CLIENTES, SESAME LABS, VODAFONE, SAGE SPAIN, INST. GLOBALES DE SEGURIDAD, HERDICASA, SAMYL FACILITY SERVICES, CEGID, EQUIFAX, FORUM GPA, FLORENCIO ORNIA PEÑA...) se pierde con este filtro -- los 71 grupos mensuales que sobreviven son todos negocio real, ninguna palabra clave cae por casualidad en un concepto genuino.
 - **Resultado**: 866 grupos más descartados (2.542 líneas). **Quedan 359 grupos candidatos con 2+ apariciones** (de 1.469 grupos totales tras las dos rondas de depuración). `contratos_detectados.xlsx` regenerado.
+### Tercera ronda: fuera los códigos de proveedor sin resolver, salvo periodicidad Anual
+
+Antes de esta ronda, el usuario pregunta por qué hay 103 códigos de proveedor sin resolver -- confirmado: **97 de los 103 ni siquiera estaban en el plan de cuentas filtrado** que se usó para crear los contactos (ese plan se filtró por tener movimiento en los balances de 2025/20260822, y estos son proveedores de 2024 sin actividad reciente en ese momento, así que quedaron fuera del filtro desde el principio); los otros 6 sí estaban pero tampoco generaron contacto (mismo hueco "OTROS" de siempre, sin correspondencia en CLIENTES/PROVEEDORES). No es un fallo de esta ronda -- la migración de contactos nunca llegó a cubrir estos proveedores.
+
+Con eso confirmado, el usuario decide: **fuera todos los grupos de tipo "código sin resolver", salvo los de periodicidad Anual** -- sin un proveedor identificado no compensa crear un contacto solo para un gasto que no se repite con claridad.
+
+- **Resultado**: 113 grupos más descartados (233 líneas). **Quedan 334 grupos candidatos con 2+ apariciones** (de 1.356 grupos totales tras las tres rondas de depuración: 65 Mensual, 32 Trimestral, 22 Semestral, 12 Anual, 117 Semanal/frecuente, 86 Irregular). `contratos_detectados.xlsx` regenerado.
 - **Pendiente**: más rondas de depuración del usuario (avisa de que seguirán llegando); trasladar este análisis a un módulo real (`maralva_import_contract`) cuando el resultado esté suficientemente depurado.
