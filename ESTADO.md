@@ -491,4 +491,21 @@ El usuario detecta que asientos que tocan una cuenta de tesorería se habían qu
 
 ### Tareas pendientes anotadas por el usuario (no abordar todavía)
 
-Contratos, préstamos, leasings, activos (fijos), y conciliación de cuentas a cobrar/pagar -- quedan explícitamente fuera del alcance actual, anotadas para más adelante.
+Contratos, préstamos, leasings, activos (fijos), conciliación de cuentas a cobrar/pagar, y **crear un informe de tesorería** -- quedan explícitamente fuera del alcance actual, anotadas para más adelante.
+
+### Arranque del tema "Contratos" -- detección de gastos recurrentes en PROASUR (2024-2026)
+
+El usuario empieza a preparar el terreno para detectar contratos/gastos recurrentes (alquileres, seguros, avales, suscripciones...) a partir del propio diario contable, en vez de un listado de contratos que no existe. Confirma que esto acabará viviendo en un módulo nuevo (`maralva_import_contract`, dependiente de `maralva_migration_base` igual que el resto de la familia `maralva_import_*` -- ver memoria `maralva-migration-modules-architecture`), pero **por ahora es solo análisis sobre el diario**, sin construir nada en Odoo todavía.
+
+- **Alcance confirmado**: solo gasto (cuenta 6xx), excluyendo nóminas (aparte, y solo si se llega a abordar). Rango: 2024, 2025 y 2026 hasta la fecha -- "si se queda alguno en el tintero lo metemos a mano".
+- **Formato del diario nuevo, mucho más simple que el usado hasta ahora para facturas**: una sola columna `Cuenta` + `De/Ha` (Debe/Haber) explícito por fila, en vez de `Cta. Cargo`/`Cta. Abono` con reglas de signo que hubo que deducir a mano -- confirmado con un `diario muestra.xlsx` (15 días) antes de que el usuario subiera los 6 ficheros reales (`AAAA-N diario para contratos.xlsx`, uno por semestre, 92.855 filas / 26.906 asientos en total).
+- **Columnas de salida que se necesitan por cada gasto recurrente detectado**: cuenta de gasto, concepto, sección, proveedor (o deducido del comentario si no existe todavía -- probablemente haya que crear el contacto), periodicidad, importe, fecha de emisión de la factura y fecha de cargo/pago, más si es factura o gasto directo y si es IVA o IGIC (para asignar la rama Península/Canarias). Para las facturas con proveedor, la fecha de emisión es la contable pero el pago hay que buscarlo más adelante en el propio diario (puede ir varios días después) -- para las de gasto directo a tesorería (sin IVA o no deducido: intereses, seguros, avales...), emisión y pago son el mismo día.
+- **Primer filtro de exclusión aplicado sobre los 26.906 asientos**, antes de ponerse a buscar patrones de recurrencia (criterio del usuario: quitar primero lo que ya se sabe que no cuenta):
+  - Apertura/cierre contable (`Período` = Apertura, Cierre Conta, Cierre Ejer.): 7 asientos.
+  - Facturas emitidas (venta, no interesa): 1.832.
+  - Nóminas (cuentas 640/642): 97.
+  - Sin ninguna cuenta de gasto 6xx (traspasos de tesorería puros, pólizas, etc.): 9.259.
+  - De las facturas recibidas (con proveedor 400/401/410): las intracomunitarias (columna `Intra.`='Realizado') y las de compra de mercadería/materia prima/trabajos de otras empresas (cuentas 600, 601, 602, 607) -- combinadas, 4.503 (las intracomunitarias quedan ya cubiertas por el filtro de "Emitida" porque su propia línea de autorrepercusión de IVA lleva ese mismo E/R/I, así que no vuelven a contarse aparte).
+  - **Quedan 11.208 asientos (35.094 líneas) candidatos** a contener gastos recurrentes.
+- **Generado `contratos_candidatos_revision.xlsx`** (en `samples/PROASUR/`) con lo que queda, para que el usuario lo revise y diga si hay que excluir algo más antes de pasar a detectar la recurrencia en sí: hoja "Resumen por cuenta" (194 cuentas de gasto, nº de asientos/líneas, importe total y un comentario de ejemplo por cuenta) + hoja "Detalle" (las 35.094 líneas completas, ordenadas por cuenta y fecha).
+- **Pendiente**: que el usuario revise el Excel y depure más exclusiones; después, diseñar y aplicar la lógica de detección de recurrencia en sí (agrupar por proveedor/cuenta/sección/importe similar y ver periodicidad) y la resolución de proveedor desde el comentario cuando no exista contacto.
