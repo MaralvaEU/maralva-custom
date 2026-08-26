@@ -16,6 +16,13 @@
                     <field name="settlement_periodicity"/>
                     <field name="settlement_commission_percent"/>
                 </group>
+                <group>
+                    <field name="has_opening_commission"/>
+                </group>
+                <group string="Comisión de apertura de la renovación" invisible="not has_opening_commission">
+                    <field name="opening_commission_percent"/>
+                    <field name="opening_commission_min_amount"/>
+                </group>
                 <footer>
                     <button string="Renovar" name="action_confirm_renew" type="object"
                             class="btn-primary"/>

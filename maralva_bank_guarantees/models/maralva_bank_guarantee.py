@@ -3,6 +3,22 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+SETTLEMENT_PERIODICITY = [
+    ('monthly', 'Mensual'),
+    ('quarterly', 'Trimestral'),
+    ('semiannual', 'Semestral'),
+    ('annual', 'Anual'),
+]
+
+PERIODICITY_DELTA = {
+    'monthly': relativedelta(months=1),
+    'quarterly': relativedelta(months=3),
+    'semiannual': relativedelta(months=6),
+    'annual': relativedelta(years=1),
+}
+
+INDEFINITE_HORIZON = relativedelta(years=1)
+
 
 class MaralvaBankGuarantee(models.Model):
     _name = 'maralva.bank.guarantee'
@@ -25,19 +41,26 @@ class MaralvaBankGuarantee(models.Model):
     account_expense_id = fields.Many2one(
         'account.account', string='Cuenta contable de gasto', required=True,
         domain="[('company_ids', 'in', company_id)]")
-    account_treasury_id = fields.Many2one(
-        'account.account', string='Cuenta contable de tesorería', required=True,
-        domain="[('company_ids', 'in', company_id)]")
+    treasury_journal_id = fields.Many2one(
+        'account.journal', string='Diario de tesorería', required=True,
+        domain="[('type', '=', 'bank'), ('company_id', '=', company_id)]",
+        help='Los asientos de comisión se contabilizan contra la cuenta por defecto de este diario.')
     opening_commission_percent = fields.Float(string='Comisión de apertura (%)', digits=(16, 2))
     opening_commission_min_amount = fields.Monetary(
         string='Importe mínimo comisión de apertura', currency_field='currency_id')
-    settlement_periodicity = fields.Selection([
-        ('monthly', 'Mensual'),
-        ('quarterly', 'Trimestral'),
-        ('semiannual', 'Semestral'),
-        ('annual', 'Anual'),
-    ], string='Periodicidad liquidación comisión', required=True)
+    opening_commission_move_id = fields.Many2one(
+        'account.move', string='Asiento comisión de apertura', copy=False, readonly=True)
+    settlement_periodicity = fields.Selection(
+        SETTLEMENT_PERIODICITY, string='Periodicidad liquidación comisión', required=True)
     settlement_commission_percent = fields.Float(string='Comisión de liquidación (%)', digits=(16, 2))
+    auto_post_settlements = fields.Boolean(
+        string='Contabilizar liquidaciones automáticamente',
+        help='Si está marcado, un proceso diario contabiliza cada liquidación prevista en su '
+             'fecha sin intervención manual. Si no, hay que pulsar "Contabilizar" en cada una.')
+    settlement_ids = fields.One2many(
+        'maralva.bank.guarantee.settlement', 'guarantee_id', string='Previsión de liquidaciones')
+    renewal_ids = fields.One2many(
+        'maralva.bank.guarantee.renewal', 'guarantee_id', string='Renovaciones')
     # Modelado como Many2one (una sola empresa avalada por aval), a petición
     # explícita del usuario -- pendiente valorar si algún caso real necesita
     # que un mismo aval cubra a varias empresas (pasaría a Many2many).
@@ -80,12 +103,20 @@ class MaralvaBankGuarantee(models.Model):
             if guarantee.state != 'approved':
                 raise UserError(_('Solo se puede confirmar un aval aprobado.'))
         self.write({'state': 'confirmed'})
+        for guarantee in self:
+            amount = guarantee._compute_opening_commission_amount()
+            if amount:
+                move = guarantee._post_commission_entry(
+                    amount, _('Comisión de apertura aval %s', guarantee.name))
+                guarantee.opening_commission_move_id = move.id
+            guarantee._generate_settlement_forecast(start_date=guarantee.date_concession)
 
     def action_cancel(self):
         for guarantee in self:
             if guarantee.state == 'cancelled':
                 raise UserError(_('El aval "%s" ya está cancelado.', guarantee.name))
         self.write({'state': 'cancelled'})
+        self.settlement_ids.filtered(lambda s: s.state == 'pending').action_cancel_settlement()
 
     def action_open_renew_wizard(self):
         self.ensure_one()
@@ -103,6 +134,8 @@ class MaralvaBankGuarantee(models.Model):
                 'default_initial_amount': self.initial_amount,
                 'default_settlement_periodicity': self.settlement_periodicity,
                 'default_settlement_commission_percent': self.settlement_commission_percent,
+                'default_opening_commission_percent': self.opening_commission_percent,
+                'default_opening_commission_min_amount': self.opening_commission_min_amount,
             },
         }
 
@@ -132,6 +165,63 @@ class MaralvaBankGuarantee(models.Model):
                 vals['name'] = self.env['ir.sequence'].next_by_code('maralva.bank.guarantee') or _('Nuevo')
         return super().create(vals_list)
 
+    def _compute_opening_commission_amount(self, percent=None, min_amount=None):
+        self.ensure_one()
+        percent = self.opening_commission_percent if percent is None else percent
+        min_amount = self.opening_commission_min_amount if min_amount is None else min_amount
+        if not percent and not min_amount:
+            return 0.0
+        return max(self.initial_amount * percent / 100.0, min_amount)
+
+    def _post_commission_entry(self, amount, label):
+        self.ensure_one()
+        journal = self.treasury_journal_id
+        move = self.env['account.move'].create({
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': fields.Date.context_today(self),
+            'ref': label,
+            'line_ids': [
+                (0, 0, {
+                    'account_id': self.account_expense_id.id,
+                    'name': label,
+                    'debit': amount,
+                    'credit': 0.0,
+                }),
+                (0, 0, {
+                    'account_id': journal.default_account_id.id,
+                    'name': label,
+                    'debit': 0.0,
+                    'credit': amount,
+                }),
+            ],
+        })
+        move.action_post()
+        return move
+
+    def _generate_settlement_forecast(self, start_date=None, percent=None):
+        self.ensure_one()
+        if not self.settlement_periodicity:
+            return
+        percent = self.settlement_commission_percent if percent is None else percent
+        delta = PERIODICITY_DELTA[self.settlement_periodicity]
+        today = fields.Date.context_today(self)
+        next_date = (start_date or today) + delta
+        horizon = (today + INDEFINITE_HORIZON) if self.is_indefinite else self.date_expiration
+        if not horizon:
+            return
+        amount = self.initial_amount * percent / 100.0 if percent else 0.0
+        vals_list = []
+        while next_date <= horizon:
+            vals_list.append({
+                'guarantee_id': self.id,
+                'date': next_date,
+                'amount': amount,
+            })
+            next_date += delta
+        if vals_list:
+            self.env['maralva.bank.guarantee.settlement'].create(vals_list)
+
     @api.model
     def _cron_notify_expiring_guarantees(self):
         """Aviso al responsable cuando quedan 30 días para el vencimiento."""
@@ -155,3 +245,27 @@ class MaralvaBankGuarantee(models.Model):
                 ),
                 user_id=guarantee.responsible_id.id,
             )
+
+    @api.model
+    def _cron_extend_indefinite_settlement_forecasts(self):
+        """Mantiene un horizonte de previsión de 1 año para avales indefinidos."""
+        today = fields.Date.context_today(self)
+        trigger_date = today + relativedelta(months=1)
+        guarantees = self.search([('is_indefinite', '=', True), ('state', '=', 'confirmed')])
+        for guarantee in guarantees:
+            live_settlements = guarantee.settlement_ids.filtered(lambda s: s.state != 'cancelled')
+            last_date = max(live_settlements.mapped('date'), default=guarantee.date_concession)
+            if last_date <= trigger_date:
+                guarantee._generate_settlement_forecast(start_date=last_date)
+
+    @api.model
+    def _cron_post_pending_settlements(self):
+        """Contabiliza en su fecha las liquidaciones de los avales marcados como automáticos."""
+        today = fields.Date.context_today(self)
+        settlements = self.env['maralva.bank.guarantee.settlement'].search([
+            ('state', '=', 'pending'),
+            ('date', '<=', today),
+            ('guarantee_id.auto_post_settlements', '=', True),
+            ('guarantee_id.state', '=', 'confirmed'),
+        ])
+        settlements.action_post_settlement()

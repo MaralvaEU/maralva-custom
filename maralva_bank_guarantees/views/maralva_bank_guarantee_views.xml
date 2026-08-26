@@ -72,15 +72,48 @@
                     <group>
                         <group string="Contabilidad">
                             <field name="account_expense_id"/>
-                            <field name="account_treasury_id"/>
+                            <field name="treasury_journal_id"/>
                         </group>
                         <group string="Comisiones">
                             <field name="opening_commission_percent"/>
                             <field name="opening_commission_min_amount"/>
+                            <field name="opening_commission_move_id" readonly="1"/>
                             <field name="settlement_periodicity"/>
                             <field name="settlement_commission_percent"/>
+                            <field name="auto_post_settlements"/>
                         </group>
                     </group>
+                    <notebook>
+                        <page string="Previsión de liquidaciones" name="settlements">
+                            <field name="settlement_ids">
+                                <list editable="bottom" decoration-muted="state == 'cancelled'">
+                                    <field name="date"/>
+                                    <field name="amount" readonly="state != 'pending'"/>
+                                    <field name="state" widget="badge"
+                                           decoration-info="state == 'pending'"
+                                           decoration-success="state == 'posted'"
+                                           decoration-muted="state == 'cancelled'"/>
+                                    <field name="move_id" readonly="1"/>
+                                    <button string="Contabilizar" name="action_post_settlement"
+                                            type="object" invisible="state != 'pending'"
+                                            class="btn-link"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Renovaciones" name="renewals">
+                            <field name="renewal_ids" readonly="1">
+                                <list>
+                                    <field name="date"/>
+                                    <field name="old_date_expiration"/>
+                                    <field name="new_date_expiration"/>
+                                    <field name="modified_conditions"/>
+                                    <field name="has_opening_commission"/>
+                                    <field name="opening_commission_amount"/>
+                                    <field name="opening_commission_move_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                     <group string="Observaciones">
                         <field name="notes" nolabel="1"/>
                     </group>
