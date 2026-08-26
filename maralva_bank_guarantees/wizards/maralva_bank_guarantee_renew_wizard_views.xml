@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_maralva_bank_guarantee_renew_wizard_form" model="ir.ui.view">
+        <field name="name">maralva.bank.guarantee.renew.wizard.form</field>
+        <field name="model">maralva.bank.guarantee.renew.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Renovar aval">
+                <field name="guarantee_id" invisible="1"/>
+                <field name="currency_id" invisible="1"/>
+                <group>
+                    <field name="date_expiration"/>
+                    <field name="modify_conditions"/>
+                </group>
+                <group string="Nuevas condiciones" invisible="not modify_conditions">
+                    <field name="initial_amount"/>
+                    <field name="settlement_periodicity"/>
+                    <field name="settlement_commission_percent"/>
+                </group>
+                <footer>
+                    <button string="Renovar" name="action_confirm_renew" type="object"
+                            class="btn-primary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

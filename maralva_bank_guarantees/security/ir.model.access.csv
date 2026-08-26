@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_maralva_bank_guarantee_invoice,maralva.bank.guarantee account invoice,model_maralva_bank_guarantee,account.group_account_invoice,1,1,1,1
+access_maralva_bank_guarantee_renew_wizard_invoice,maralva.bank.guarantee.renew.wizard account invoice,model_maralva_bank_guarantee_renew_wizard,account.group_account_invoice,1,1,1,1
