@@ -190,8 +190,8 @@
 
     <menuitem id="menu_maralva_bank_guarantee_root"
               name="Avales"
-              parent="account.menu_finance"
-              sequence="90"/>
+              parent="account.menu_finance_entries"
+              sequence="75"/>
     <menuitem id="menu_maralva_bank_guarantee"
               name="Avales bancarios"
               parent="menu_maralva_bank_guarantee_root"

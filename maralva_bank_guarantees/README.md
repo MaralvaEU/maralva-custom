@@ -2,7 +2,10 @@
 
 ## Contenido
 
-`maralva.bank.guarantee` (menú *Contabilidad > Avales > Avales bancarios*,
+`maralva.bank.guarantee` (menú *Facturación/Contabilidad > Avales > Avales
+bancarios* -- "Avales" como sección propia dentro de la app de Contabilidad,
+al mismo nivel que "Contabilidad"/"Informes"/etc., igual que hace el
+módulo OCA `account_loan` con "Préstamos" (`parent="account.menu_finance_entries"`);
 vistas de lista, formulario, actividades y pivote):
 un registro por aval, con chatter completo (mensajes, seguidores, adjuntos,
 envío de correo) vía `mail.thread`/`mail.activity.mixin`.
