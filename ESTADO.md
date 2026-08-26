@@ -529,9 +529,26 @@ El usuario, antes de que se estudiaran los gastos recurrentes, avisa de un error
 - **Verificado tras la corrección**: 0 líneas con más de 1 clave, 4.273 líneas con exactamente 1 clave combinada, y las líneas analíticas resultantes tienen ahora las 3-4 columnas de plan rellenas a la vez en el mismo registro.
 - **Pendiente relacionado**: revisar si SERINGE/UTE NUNSYS (de sesiones anteriores) tienen el mismo problema -- descartado por el usuario, en esas dos empresas no se usa contabilidad analítica.
 
-### Pendiente por confirmar: posible error grave de cuenta contable en facturas por no asociarla al producto
+### Confirmado: error grave de cuenta contable en facturas PROASUR Península/Canarias por no resolver bien la cuenta del producto
 
-El usuario detecta lo que cree que puede ser **otro error grave**, esta vez en las cuentas contables de las facturas ya creadas: al parecer relacionado con no asociar correctamente la cuenta contable al producto de la línea de factura (en vez de fijarla explícitamente en la propia línea, podría estar cogiendo la cuenta por defecto del producto de forma incorrecta, o al revés). **No investigado ni confirmado todavía** -- queda anotado como pendiente a la espera de que el usuario dé más detalle o pida revisarlo.
+El usuario detecta que las líneas de las facturas de compra y de venta **no llevan la cuenta contable propia del producto**, sino una cuenta genérica -- pese a que el producto sí tiene su cuenta configurada. Investigado y **confirmado con datos reales**, con causa raíz precisa:
+
+- `property_account_income_id`/`property_account_expense_id` de `product.template` son campos `company_dependent` (columna jsonb en la propia tabla, clave = id de compañía en texto, ej. `{"1": 999}` -- mismo mecanismo ya documentado para `account.account.code_store`). Los 124 productos de cuenta creados para PROASUR (`build_recibidas_peninsula_proasur.py` y equivalente de ventas) se crearon con la cuenta grabada **solo bajo la clave de la compañía matriz (`"1"`)** -- nunca bajo las claves de las ramas `PROASUR PENINSULA` (`"2"`) ni `PROASUR CANARIAS` (`"3"`), que es donde en realidad viven las 1.662 facturas reales construidas con esos productos.
+- A diferencia de `account.account` (compartida entre matriz y ramas por el propio modelo, sin depender de resolución por compañía para existir), el campo `company_dependent` de `product.template` **no hace fallback a la compañía padre**: al construir la factura en la rama, Odoo no encuentra clave `"2"`/`"3"` en el jsonb y cae al valor por defecto de la **categoría de producto** ("Cuentas contables"), que apunta a las cuentas genéricas `600000000` (Compras de mercaderías, id 998) / `700000000` (Ventas de mercaderías, id 1141) -- de ahí la "cuenta genérica" que detectó el usuario.
+- **Alcance verificado por SQL directo sobre `proasurjnma`**: 1.716 líneas de producto afectadas (124 productos distintos), en 1.662 facturas, **todas en estado `posted`**:
+
+  | Tipo | Compañía | Nº facturas |
+  |---|---|---|
+  | Fact. recibidas (in_invoice) | PROASUR PENINSULA (2) | 1.349 |
+  | Fact. recibidas (in_invoice) | PROASUR CANARIAS (3) | 71 |
+  | Rectificativas recibidas (in_refund) | PROASUR PENINSULA (2) | 27 |
+  | Fact. emitidas (out_invoice) | PROASUR PENINSULA (2) | 111 |
+  | Fact. emitidas (out_invoice) | PROASUR CANARIAS (3) | 83 |
+  | Rectificativas emitidas (out_refund) | PROASUR PENINSULA (2) | 21 |
+
+- **SERINGE (5) y UTE NUNSYS (6) no están afectadas**: sus productos se crearon con la cuenta grabada directamente bajo la clave de su propia compañía (`"5"`/`"6"`, empresas sin ramas), no bajo una matriz distinta -- confirmado por SQL, 0 líneas con desajuste en esas dos compañías.
+- **No afecta a importes ni impuestos**: es una reclasificación de la cuenta de la línea (la genérica de mercaderías en vez de la específica del producto/cuenta origen de Sage), los totales/IVA/IGIC de cada factura son correctos.
+- **Antes de continuar con "Contratos"**, el usuario pide arreglar esto primero. **Corregido y verificado (2026-08-26)**: (1) extendida la cuenta de los 124 productos afectados a las claves `"2"`/`"3"` de `property_account_income_id`/`property_account_expense_id` (copiando el valor ya correcto de la clave `"1"`), 248 escrituras -- para que las facturas futuras construidas con estos productos no vuelvan a caer en la cuenta genérica; (2) corregido `account_id` directamente en las 1.716 líneas ya contabilizadas (sin desasentar, sin tocar importes/impuestos -- solo la cuenta), mismo criterio ya usado con el bug de `analytic_distribution`. Verificado tras la corrección: 0 líneas sin coincidir con la cuenta del producto, 0 asientos descuadrados (1.662 asientos comprobados, Debe = Haber en todos).
 
 ### Primer intento (borrador, sin supervisión directa) de detección de contratos/gastos recurrentes
 
