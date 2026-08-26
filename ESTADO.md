@@ -594,4 +594,10 @@ Se añaden dos columnas al Excel a petición del usuario ("Importe mínimo"/"Imp
 
 - **Traducción a clave estable**: cada fila de "excluir" se mapea a la misma clave `(tipo, proveedor_o_concepto, cuenta, sección)` usada por el resto del mecanismo -- para tipo "Proveedor Odoo" la clave es el `ID proveedor Odoo` de la última columna (no el nombre mostrado en "Proveedor/Concepto", que ahí muestra el nombre, no el id); para "Código proveedor"/"Concepto (sin proveedor)" coincide directamente con la columna "Proveedor/Concepto". Las 195 claves, ninguna coincidente con las 130 de la primera ronda, se añaden a `exclusiones_contratos_proasur.json` (130 -> 325 claves).
 - **Resultado**: 195 grupos más descartados (1.662 líneas). **Quedan 139 grupos candidatos** (41 Mensual, 18 Trimestral, 12 Semestral, 9 Anual, 21 Semanal/frecuente, 38 Irregular). Confirmado que CASINTRA (proveedor que el usuario detectó que seguía apareciendo pese a haberlo pedido excluir) ya no aparece en el resultado. `contratos_detectados.xlsx` regenerado (con las hojas estándar; la hoja "excluir" era solo el vehículo de esta ronda, no se conserva en la regeneración).
+
+### Sexta ronda: misma mecánica ("Excluir"), 28 filas más
+
+Mismo patrón de la quinta ronda -- el usuario sube de nuevo `contratos_detectados.xlsx` con una hoja adicional de exclusión (esta vez llamada "Excluir", con mayúscula -- el script de traducción se generalizó para aceptar cualquier variante de mayúsculas del nombre de hoja) con 28 filas descartadas por proveedor/concepto.
+
+- **Resultado**: 28 grupos más descartados. `exclusiones_contratos_proasur.json` pasa de 325 a **353 claves**. **Quedan 111 grupos candidatos** (31 Mensual, 17 Trimestral, 11 Semestral, 9 Anual, 15 Semanal/frecuente, 28 Irregular). `contratos_detectados.xlsx` regenerado.
 - **Pendiente**: más rondas de depuración del usuario (avisa de que seguirán llegando); trasladar este análisis a un módulo real (`maralva_import_contract`) cuando el resultado esté suficientemente depurado.
