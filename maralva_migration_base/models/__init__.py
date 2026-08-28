@@ -8,3 +8,4 @@ from . import maralva_migration_import_group
 from . import maralva_migration_import_group_line
 from . import maralva_migration_import_wizard
 from . import maralva_migration_import_wizard_line
+from . import res_partner
