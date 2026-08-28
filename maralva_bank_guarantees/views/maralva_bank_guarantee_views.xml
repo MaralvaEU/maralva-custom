@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_maralva_bank_guarantee_list" model="ir.ui.view">
+        <field name="name">maralva.bank.guarantee.list</field>
+        <field name="model">maralva.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <list string="Avales bancarios">
+                <field name="name"/>
+                <field name="date_concession"/>
+                <field name="policy_number"/>
+                <field name="issuer_id"/>
+                <field name="guaranteed_partner_id"/>
+                <field name="initial_amount"/>
+                <field name="is_indefinite"/>
+                <field name="date_expiration"/>
+                <field name="renewed"/>
+                <field name="responsible_id"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'approved'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-danger="state == 'cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_maralva_bank_guarantee_form" model="ir.ui.view">
+        <field name="name">maralva.bank.guarantee.form</field>
+        <field name="model">maralva.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <form string="Aval bancario">
+                <header>
+                    <button string="Aprobar" name="action_approve" type="object"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="Confirmar" name="action_confirm" type="object"
+                            class="btn-primary" invisible="state != 'approved'"/>
+                    <button string="Renovar" name="action_open_renew_wizard" type="object"
+                            invisible="state != 'confirmed'"/>
+                    <button string="Cancelar" name="action_cancel" type="object"
+                            confirm="¿Seguro que quieres cancelar este aval?"
+                            invisible="state == 'cancelled'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,confirmed"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Indefinido" bg_color="text-bg-info"
+                            invisible="not is_indefinite"/>
+                    <widget name="web_ribbon" title="Renovado" bg_color="text-bg-success"
+                            invisible="not renewed"/>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Datos generales">
+                            <field name="date"/>
+                            <field name="date_concession"/>
+                            <field name="policy_number"/>
+                            <field name="issuer_id"/>
+                            <field name="guaranteed_partner_id"/>
+                            <field name="purpose"/>
+                            <field name="responsible_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Importe y vigencia">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="initial_amount"/>
+                            <field name="is_indefinite"/>
+                            <field name="date_expiration" invisible="is_indefinite"
+                                   required="not is_indefinite"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Contabilidad">
+                            <field name="account_expense_id"/>
+                            <field name="treasury_journal_id"/>
+                        </group>
+                        <group string="Comisiones">
+                            <field name="opening_commission_percent"/>
+                            <field name="opening_commission_min_amount"/>
+                            <field name="opening_commission_move_id" readonly="1"/>
+                            <field name="settlement_periodicity"/>
+                            <field name="settlement_commission_percent"/>
+                            <field name="auto_post_settlements"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Previsión de liquidaciones" name="settlements">
+                            <field name="settlement_ids">
+                                <list editable="bottom" decoration-muted="state == 'cancelled'">
+                                    <field name="date"/>
+                                    <field name="amount" readonly="state != 'pending'"/>
+                                    <field name="state" widget="badge"
+                                           decoration-info="state == 'pending'"
+                                           decoration-success="state == 'posted'"
+                                           decoration-muted="state == 'cancelled'"/>
+                                    <field name="move_id" readonly="1"/>
+                                    <button string="Contabilizar" name="action_post_settlement"
+                                            type="object" invisible="state != 'pending'"
+                                            class="btn-link"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Renovaciones" name="renewals">
+                            <field name="renewal_ids" readonly="1">
+                                <list>
+                                    <field name="date"/>
+                                    <field name="old_date_expiration"/>
+                                    <field name="new_date_expiration"/>
+                                    <field name="modified_conditions"/>
+                                    <field name="has_opening_commission"/>
+                                    <field name="opening_commission_amount"/>
+                                    <field name="opening_commission_move_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    <group string="Observaciones">
+                        <field name="notes" nolabel="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_maralva_bank_guarantee_search" model="ir.ui.view">
+        <field name="name">maralva.bank.guarantee.search</field>
+        <field name="model">maralva.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <search string="Avales bancarios">
+                <field name="name"/>
+                <field name="policy_number"/>
+                <field name="issuer_id"/>
+                <field name="guaranteed_partner_id"/>
+                <field name="responsible_id"/>
+                <filter string="Indefinidos" name="indefinite" domain="[('is_indefinite', '=', True)]"/>
+                <filter string="Con vencimiento" name="with_expiration" domain="[('is_indefinite', '=', False)]"/>
+                <filter string="Renovados" name="renewed" domain="[('renewed', '=', True)]"/>
+                <separator/>
+                <filter string="Borrador" name="state_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Aprobado" name="state_approved" domain="[('state', '=', 'approved')]"/>
+                <filter string="Confirmado" name="state_confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <filter string="Cancelado" name="state_cancelled" domain="[('state', '=', 'cancelled')]"/>
+                <group name="group_by">
+                    <filter string="Estado" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Empresa concesionaria" name="group_issuer" context="{'group_by': 'issuer_id'}"/>
+                    <filter string="Empresa avalada" name="group_guaranteed" context="{'group_by': 'guaranteed_partner_id'}"/>
+                    <filter string="Responsable" name="group_responsible" context="{'group_by': 'responsible_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_maralva_bank_guarantee_pivot" model="ir.ui.view">
+        <field name="name">maralva.bank.guarantee.pivot</field>
+        <field name="model">maralva.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <pivot string="Avales bancarios">
+                <field name="issuer_id" type="row"/>
+                <field name="state" type="col"/>
+                <field name="initial_amount" type="measure"/>
+                <field name="opening_commission_min_amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_maralva_bank_guarantee_activity" model="ir.ui.view">
+        <field name="name">maralva.bank.guarantee.activity</field>
+        <field name="model">maralva.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <activity string="Avales bancarios">
+                <field name="name"/>
+                <field name="guaranteed_partner_id"/>
+                <field name="responsible_id"/>
+                <templates>
+                    <div t-name="activity-box">
+                        <field name="name" display="full"/>
+                        <div t-out="record.guaranteed_partner_id.value"/>
+                    </div>
+                </templates>
+            </activity>
+        </field>
+    </record>
+
+    <record id="action_maralva_bank_guarantee" model="ir.actions.act_window">
+        <field name="name">Avales bancarios</field>
+        <field name="res_model">maralva.bank.guarantee</field>
+        <field name="view_mode">list,form,activity,pivot</field>
+    </record>
+
+    <menuitem id="menu_maralva_bank_guarantee_root"
+              name="Avales"
+              parent="account.menu_finance_entries"
+              sequence="75"/>
+    <menuitem id="menu_maralva_bank_guarantee"
+              name="Avales bancarios"
+              parent="menu_maralva_bank_guarantee_root"
+              action="action_maralva_bank_guarantee"
+              sequence="10"/>
+</odoo>

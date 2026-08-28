@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_maralva_bank_guarantee" model="ir.sequence">
+        <field name="name">Aval bancario</field>
+        <field name="code">maralva.bank.guarantee</field>
+        <field name="prefix">AVAL/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>
