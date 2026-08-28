@@ -23,6 +23,40 @@ INDIVIDUAL_VAT_RE = re.compile(r'^[0-9XYZxyz]')
 # suposición, pero se deja aviso en el log para que el cliente lo revise.
 NIF_RE = re.compile(r'^(\d+)([A-Za-z])$')
 
+# Etiqueta de contacto a añadir según el tipo de hoja — mismo nombre que la
+# columna 'Clien./Prov.' del plan de cuentas de Sage, para que el futuro
+# módulo de contabilidad pueda reconciliar contra la misma etiqueta. Los
+# proveedores no llevan una etiqueta fija: se distinguen por el prefijo de
+# su 'Cód. contable' (ver SUPPLIER_ACCOUNT_PREFIX_TAG más abajo).
+RANK_FIELD_TAG = {
+    'customer_rank': 'Cliente',
+}
+
+# Etiqueta de proveedor según el prefijo de su 'Cód. contable': los de
+# cuenta 400x (proveedores de compraventa) se etiquetan 'Proveedor'; los de
+# cuenta 410x (acreedores por prestación de servicios) se etiquetan
+# 'Prov. Servicios' -- a petición explícita del usuario, a tener en cuenta
+# en toda futura importación de contactos. Un proveedor cuyo prefijo no sea
+# ninguno de los dos (ej. AEAT, 475x) se queda con la etiqueta genérica
+# 'Proveedor' por defecto.
+SUPPLIER_ACCOUNT_PREFIX_TAG = {
+    '400': 'Proveedor',
+    '410': 'Prov. Servicios',
+}
+
+# Prefijos de 'Cód. contable' (Sage) que identifican la cuenta genérica a
+# cobrar/a pagar del contacto. Igual que en el import del diario, una cuenta
+# con desarrollo (ej. '430030000') se colapsa siempre a su genérica de 3
+# dígitos ('430000000'), nunca a nivel de 4 dígitos -- son familias de
+# cuenta distintas, no una sola con más o menos detalle.
+RECEIVABLE_ACCOUNT_PREFIXES = ('430', '433')
+PAYABLE_ACCOUNT_PREFIXES = ('400', '410')
+
+# Posición fiscal "España Península" en proasurjnma -- se inyecta por
+# defecto en todo contacto español que no traiga ya una posición fiscal
+# fijada (ver ESTADO.md).
+DEFAULT_FISCAL_POSITION_ID = 69
+
 
 class MaralvaMigrationImportFile(models.Model):
     _inherit = 'maralva.migration.import.file'
@@ -81,7 +115,19 @@ class MaralvaMigrationImportFile(models.Model):
         has_error = False
 
         for row in rows[1:]:
-            data = {header[i]: row[i] for i in range(len(header)) if header[i]}
+            # Sage repite alguna cabecera dos veces en el mismo export (visto
+            # real en 'Cód. contable' de PROVEEDORES.xlsx: aparece en dos
+            # columnas, la segunda siempre vacía) -- si se construyera el
+            # diccionario sin más, la columna vacía pisaría a la que sí trae
+            # dato por venir después. Se queda con el primer valor no vacío
+            # que aparezca para cada nombre de columna repetido.
+            data = {}
+            for i, key in enumerate(header):
+                if not key:
+                    continue
+                value = row[i] if i < len(row) else None
+                if key not in data or (data[key] in (None, '') and value not in (None, '')):
+                    data[key] = value
             code = self._sage_clean(data.get(code_field))
             name = self._sage_clean(data.get('Razón social'))
             if not code or not name:
@@ -102,12 +148,24 @@ class MaralvaMigrationImportFile(models.Model):
         company = self._resolve_sage_row_company(data)
 
         id_map = self.env['maralva.migration.id.map']
-        partner_model = self.env['res.partner']
+        # company_dependent (property_account_receivable_id/payable_id/
+        # property_account_position_id): hay que leerlos y escribirlos en el
+        # contexto de la compañía correcta, o se lee/escribe el valor de la
+        # compañía activa del entorno, no el de esta fila.
+        partner_model = self.env['res.partner'].with_company(company)
 
         res_id = id_map.get_res_id(SOURCE_APP, source_model, code, 'res.partner')
         partner = partner_model.browse(res_id) if res_id else partner_model
 
-        vat = self._normalize_sage_vat(batch, code, data.get('CIF/DNI'))
+        plain_vat = self._normalize_sage_vat(batch, code, data.get('CIF/DNI'))
+        # El prefijo internacional del NIF depende del país del partner, no es
+        # un "ES" fijo -- hoy el país siempre se resuelve a España (ver más
+        # abajo), así que en la práctica coincide, pero queda ligado al país
+        # en vez de hardcodeado aparte. Sin el prefijo, no se puede fusionar
+        # con partners ya existentes en formato internacional (ej. el AEAT
+        # que traen los módulos OCA de Hacienda, "ESQ2826000H").
+        country = self.env.ref('base.es')
+        vat = f"{country.code}{plain_vat}" if plain_vat else False
         if not partner and vat:
             partner = partner_model.search([
                 ('vat', '=', vat),
@@ -119,7 +177,7 @@ class MaralvaMigrationImportFile(models.Model):
                     f"(id {partner.id}); se fusiona en vez de duplicar.",
                     res_model='res.partner', source_id=code)
 
-        vals = self._build_sage_partner_vals(company, data, name, vat, config)
+        vals = self._build_sage_partner_vals(company, data, name, vat, plain_vat, country, config)
 
         if partner:
             partner.write(vals)
@@ -128,12 +186,14 @@ class MaralvaMigrationImportFile(models.Model):
 
         id_map.set_mapping(SOURCE_APP, source_model, code, 'res.partner', partner.id, batch=batch)
 
+        self._apply_sage_partner_property_accounts(partner, company, data, batch, code)
+
         if vals.get('state_id') is False and self._sage_clean(data.get('Provincia')):
             batch.log_warning(
                 f"No se encontró la provincia '{data.get('Provincia')}' en España.",
                 res_model='res.partner', source_id=code)
 
-    def _build_sage_partner_vals(self, company, data, name, vat, config):
+    def _build_sage_partner_vals(self, company, data, name, vat, plain_vat, country, config):
         # Se escriben todos los campos que vienen en el origen, vacíos
         # incluidos (igual que el importador estándar de Odoo): si un campo
         # ya tenía valor y el fichero reenviado lo trae vacío, se vacía.
@@ -142,29 +202,84 @@ class MaralvaMigrationImportFile(models.Model):
             'company_id': company.id,
             config.rank_field: 1,
             'vat': vat,
+            'country_id': country.id,
             'phone': self._sage_clean(data.get('Teléfono')),
             'email': self._sage_clean(data.get('Correo Electrónico1')),
             'city': self._sage_clean(data.get('Municipio')),
             'street': self._sage_clean(data.get(config.street_field)),
             'zip': self._sage_clean(data.get('Cód. postal')),
         }
-        if vat:
-            vals['company_type'] = 'person' if INDIVIDUAL_VAT_RE.match(vat) else 'company'
+        if plain_vat:
+            # La detección persona/empresa mira el NIF/CIF sin el prefijo de
+            # país -- con el prefijo puesto, el primer carácter sería siempre
+            # la letra del país y la detección saldría siempre "empresa".
+            vals['company_type'] = 'person' if INDIVIDUAL_VAT_RE.match(plain_vat) else 'company'
+
+        tag_name = self._resolve_sage_partner_tag_name(config, data)
+        if tag_name:
+            category_ops = []
+            if config.rank_field == 'supplier_rank':
+                # 'Proveedor' y 'Prov. Servicios' son mutuamente excluyentes
+                # (dependen del prefijo de cuenta, que puede cambiar entre
+                # reimportaciones) -- hay que quitar la etiqueta que ya no
+                # corresponda, no solo añadir la nueva.
+                for other_tag in set(SUPPLIER_ACCOUNT_PREFIX_TAG.values()) - {tag_name}:
+                    other_category = self.env['res.partner']._maralva_get_or_create_category(other_tag)
+                    category_ops.append((3, other_category.id))
+            category = self.env['res.partner']._maralva_get_or_create_category(tag_name)
+            category_ops.append((4, category.id))
+            vals['category_id'] = category_ops
 
         provincia = self._sage_clean(data.get('Provincia'))
-        spain = self.env.ref('base.es')
-        vals['country_id'] = spain.id
         state = False
         if provincia:
             # 'ilike' (contiene), no exacto: varias provincias de Odoo llevan
             # nombre doble, ej. "A Coruña (La Coruña)", "Bizkaia (Vizcaya)".
             state = self.env['res.country.state'].search([
-                ('country_id', '=', spain.id),
+                ('country_id', '=', country.id),
                 ('name', 'ilike', provincia),
             ], limit=1)
         vals['state_id'] = state.id if state else False
 
         return vals
+
+    def _resolve_sage_partner_tag_name(self, config, data):
+        if config.rank_field == 'supplier_rank':
+            account_code = self._sage_clean(data.get('Cód. contable'))
+            prefix = account_code[:3] if account_code else None
+            return SUPPLIER_ACCOUNT_PREFIX_TAG.get(prefix, 'Proveedor')
+        return RANK_FIELD_TAG.get(config.rank_field)
+
+    def _apply_sage_partner_property_accounts(self, partner, company, data, batch, code):
+        """Fija la cuenta a cobrar/a pagar (colapsada a la genérica de 3
+        dígitos) y, por defecto, la posición fiscal 'España Península' de
+        todo contacto español que no traiga ya una -- ver comentario de las
+        constantes RECEIVABLE_/PAYABLE_ACCOUNT_PREFIXES y
+        DEFAULT_FISCAL_POSITION_ID más arriba."""
+        account_code = self._sage_clean(data.get('Cód. contable'))
+        if account_code:
+            if account_code.startswith(RECEIVABLE_ACCOUNT_PREFIXES):
+                target_field = 'property_account_receivable_id'
+            elif account_code.startswith(PAYABLE_ACCOUNT_PREFIXES):
+                target_field = 'property_account_payable_id'
+            else:
+                target_field = None
+            if target_field:
+                generic_code = account_code[:3] + '0' * 6
+                account = self.env['account.account'].with_company(company).search([
+                    ('company_ids', 'in', company.id),
+                ]).filtered(lambda a: a.code == generic_code)
+                if account:
+                    partner[target_field] = account[0].id
+                else:
+                    batch.log_warning(
+                        f"No existe en Odoo la cuenta {generic_code} (compañía "
+                        f"{company.display_name}) para fijar {target_field} de "
+                        f"{partner.display_name}.",
+                        res_model='res.partner', source_id=code)
+
+        if partner.country_id.code == 'ES' and not partner.property_account_position_id:
+            partner.property_account_position_id = DEFAULT_FISCAL_POSITION_ID
 
     def _resolve_sage_row_company(self, data):
         self.ensure_one()

@@ -26,27 +26,27 @@ def post_init_hook(env):
     selector de compañías antes de instalar este módulo. Evolucionar esto a
     un wizard con selección explícita de compañía queda pendiente.
     """
-    apply_igic_configuration(env, env.company)
+    company = env.company
+    apply_igic_configuration(env, company)
+    apply_igic_fiscal_positions(env, company)
 
 
-def apply_igic_configuration(env, company):
-    """Crea en `company` los grupos e impuestos IGIC (Canarias).
+def _prepare_igic_data(env):
+    """Prepara (sin cargar) los datos de cuentas/grupos/impuestos IGIC del
+    delta 'es_canary_common', con las mismas transformaciones (filtrado a lo
+    genuinamente nuevo, prefijado de ids para no chocar con la matriz,
+    sufijo " (IGIC)" en el nombre, mapeo de etiquetas) que necesita cualquier
+    carga -- factorizado para que tanto `apply_igic_configuration` como
+    `apply_igic_fiscal_positions` (que necesita también las referencias
+    `fiscal_position_ids`/`original_tax_ids` de cada impuesto, que la
+    primera descarta) parten del mismo resultado.
 
-    Reutiliza el parser de CSV de plantillas fiscales del core
-    (`account.chart.template._parse_csv`) en vez de volcar los datos a mano,
-    para heredar las correcciones que Odoo/OCA vayan aplicando a la
-    plantilla oficial. No se usa `_load()`/`_get_chart_template_data()`
-    directamente porque están pensados para instalar un plan de cuentas
-    completo en una compañía nueva; aquí solo se añade el delta de Canarias
-    sobre un plan (ej. PGC Completo peninsular) que la compañía ya tiene.
+    Devuelve (new_acc_data, grp_data, tax_data, prefix) -- `tax_data` SÍ
+    conserva `fiscal_position_ids`/`original_tax_ids` tal cual vienen del
+    template; quien no las necesite (`apply_igic_configuration`, porque las
+    posiciones fiscales todavía no existen) debe descartarlas antes de
+    cargar.
     """
-    if env['account.tax'].search_count([
-        ('company_id', '=', company.id),
-        ('tax_group_id.name', 'ilike', 'IGIC'),
-    ], limit=1):
-        _logger.info("La compañía %s ya tiene impuestos IGIC, no se repite la carga.", company.display_name)
-        return
-
     ChartTemplate = env['account.chart.template']
 
     acc_data = ChartTemplate._parse_csv(IGIC_TEMPLATE_CODE, 'account.account', module=IGIC_MODULE)
@@ -64,14 +64,6 @@ def apply_igic_configuration(env, company):
                 match element:
                     case int() as command, _, {'tag_ids': str() as tags} as values if command in tuple(Command):
                         values['tag_ids'] = [Command.set(mapper(*tags.split(TAX_TAG_DELIMITER)))]
-
-    # Igual que account.chart.template._instantiate_foreign_taxes: las
-    # posiciones fiscales del template no se instalan aquí (no forman parte
-    # de este alcance), así que las referencias a
-    # fiscal_position_ids/original_tax_ids quedarían colgando.
-    for tax_values in tax_data.values():
-        tax_values.pop('fiscal_position_ids', None)
-        tax_values.pop('original_tax_ids', None)
 
     # Solo las cuentas realmente nuevas de IGIC; el resto de cuentas
     # referenciadas desde las líneas de reparto (IVA general, retenciones...)
@@ -113,6 +105,9 @@ def apply_igic_configuration(env, company):
                 f"{prefix}_{child}" if child in kept_tax_ids else child
                 for child in tax_values['children_tax_ids'].split(',')
             )
+    # 'fiscal_position_ids'/'original_tax_ids' se dejan tal cual (claves de
+    # plantilla SIN prefijar) -- `apply_igic_fiscal_positions` los resuelve
+    # por nombre, no por xmlid, así que no le hace falta el prefijo.
 
     # Algunos impuestos IGIC comparten nombre corto genérico con un impuesto
     # de IVA peninsular ya existente en la matriz (ej. "0% G", con el mismo
@@ -125,13 +120,46 @@ def apply_igic_configuration(env, company):
     grp_data = {f"{prefix}_{k}": v for k, v in grp_data.items()}
     tax_data = {f"{prefix}_{k}": v for k, v in tax_data.items()}
 
+    return new_acc_data, grp_data, tax_data, prefix
+
+
+def apply_igic_configuration(env, company):
+    """Crea en `company` los grupos e impuestos IGIC (Canarias).
+
+    Reutiliza el parser de CSV de plantillas fiscales del core
+    (`account.chart.template._parse_csv`) en vez de volcar los datos a mano,
+    para heredar las correcciones que Odoo/OCA vayan aplicando a la
+    plantilla oficial. No se usa `_load()`/`_get_chart_template_data()`
+    directamente porque están pensados para instalar un plan de cuentas
+    completo en una compañía nueva; aquí solo se añade el delta de Canarias
+    sobre un plan (ej. PGC Completo peninsular) que la compañía ya tiene.
+    """
+    if env['account.tax'].search_count([
+        ('company_id', '=', company.id),
+        ('tax_group_id.name', 'ilike', 'IGIC'),
+    ], limit=1):
+        _logger.info("La compañía %s ya tiene impuestos IGIC, no se repite la carga.", company.display_name)
+        return
+
+    new_acc_data, grp_data, tax_data, prefix = _prepare_igic_data(env)
+
+    # Las posiciones fiscales del template se cargan aparte (ver
+    # `apply_igic_fiscal_positions`) -- si se cargaran aquí sin existir
+    # todavía, las referencias fiscal_position_ids/original_tax_ids
+    # quedarían colgando (igual que account.chart.template._instantiate_
+    # foreign_taxes evita ese mismo problema al instanciar impuestos de
+    # sucursales extranjeras).
+    for tax_values in tax_data.values():
+        tax_values.pop('fiscal_position_ids', None)
+        tax_values.pop('original_tax_ids', None)
+
     data = {
         'account.account': new_acc_data,
         'account.tax.group': grp_data,
         'account.tax': tax_data,
     }
 
-    ChartTemplate.with_context(
+    env['account.chart.template'].with_context(
         default_company_id=company.id,
         allowed_company_ids=[company.id],
         tracking_disable=True,
@@ -140,3 +168,97 @@ def apply_igic_configuration(env, company):
     )._load_data(data)
 
     _logger.info("Cargados %s impuestos IGIC en %s.", len(tax_data), company.display_name)
+
+
+def apply_igic_fiscal_positions(env, company):
+    """Crea en `company` las posiciones fiscales de Canarias del template
+    'es_canary_common' (Régimen Islas Canarias, Régimen Extracomunitario
+    Islas Canarias, retenciones IRPF/arrendamiento Islas Canarias, Recargo
+    de Equivalencia, ISP, Régimen Minoristas, DUA) y reconecta cada impuesto
+    IGIC ya creado por `apply_igic_configuration` con las posiciones a las
+    que pertenece según el template oficial.
+
+    Comprobado contra PS CULTURAL (empresa Canarias real ya configurada en
+    esta base) y contra los propios datos del template: casi todos los
+    mapeos de 'Régimen Islas Canarias' son de un tipo IGIC a **sí mismo**
+    (origen=destino), NO una traducción de tipos IVA peninsulares a IGIC --
+    el template oficial no define esa traducción. Su función real es que
+    Odoo la auto-aplique (`auto_apply`, restringida por provincia
+    `state_ids`=Las Palmas/Sta Cruz de Tenerife) a los partners residentes
+    en Canarias, para que tengan una posición fiscal coherente en vez de
+    quedar sin ninguna.
+    """
+    if env['account.fiscal.position'].search_count([('company_id', '=', company.id)], limit=1):
+        _logger.info("La compañía %s ya tiene posiciones fiscales, no se repite la carga.", company.display_name)
+        return
+    if not env['account.tax'].search_count([
+        ('company_id', '=', company.id),
+        ('tax_group_id.name', 'ilike', 'IGIC'),
+    ], limit=1):
+        raise ValueError(
+            "No hay impuestos IGIC en %s todavía -- ejecuta primero apply_igic_configuration()."
+            % company.display_name
+        )
+
+    ChartTemplate = env['account.chart.template']
+    _new_acc_data, _grp_data, tax_data, prefix = _prepare_igic_data(env)
+
+    fp_data_raw = ChartTemplate._parse_csv(IGIC_TEMPLATE_CODE, 'account.fiscal.position', module=IGIC_MODULE)
+    fp_name_by_key = {}
+    for fp_key, fp_values in fp_data_raw.items():
+        # Nombre en castellano (el que trae el propio template, igual que
+        # usa PS CULTURAL) en vez del inglés por defecto.
+        if fp_values.get('name@es'):
+            fp_values['name'] = fp_values.pop('name@es')
+        fp_name_by_key[fp_key] = fp_values['name']
+    fp_data = {f"{prefix}_{k}": v for k, v in fp_data_raw.items()}
+
+    # Solo se carga 'account.fiscal.position' aquí -- recargar 'account.tax'
+    # completo (con sus repartition_line_ids ya existentes) a través de
+    # _load_data provoca un ValidationError ("... should each contain
+    # exactly one line for the base"), porque _load_records_write escribe
+    # las líneas de reparto encima de las que ya creó apply_igic_
+    # configuration. En vez de eso, se enlaza cada impuesto YA EXISTENTE con
+    # sus posiciones fiscales con un write() puntual solo de ese campo.
+    ChartTemplate.with_context(
+        default_company_id=company.id,
+        allowed_company_ids=[company.id],
+        tracking_disable=True,
+        lang='en_US',
+        chart_template_load=True,
+    )._load_data({'account.fiscal.position': fp_data})
+
+    fp_by_name = {
+        fp.name: fp for fp in env['account.fiscal.position'].search([('company_id', '=', company.id)])
+    }
+
+    enlazados = 0
+    sin_resolver = []
+    for tax_values in tax_data.values():
+        fp_keys = [k for k in (tax_values.get('fiscal_position_ids') or '').split(',') if k]
+        if not fp_keys:
+            continue
+        fps = env['account.fiscal.position']
+        for k in fp_keys:
+            fp = fp_by_name.get(fp_name_by_key.get(k))
+            if fp:
+                fps |= fp
+
+        tax = env['account.tax'].search([
+            ('company_id', '=', company.id),
+            ('name', '=', tax_values['name']),
+            ('type_tax_use', '=', tax_values.get('type_tax_use', 'none')),
+        ], limit=1)
+        if not tax:
+            sin_resolver.append(tax_values['name'])
+            continue
+        tax.fiscal_position_ids = fps
+        enlazados += 1
+
+    _logger.info(
+        "Cargadas %s posiciones fiscales IGIC en %s, %s impuestos enlazados (%s sin resolver).",
+        len(fp_data), company.display_name, enlazados, len(sin_resolver),
+    )
+    if sin_resolver:
+        _logger.warning("Impuestos IGIC no encontrados al enlazar posiciones fiscales: %s", sin_resolver)
+
