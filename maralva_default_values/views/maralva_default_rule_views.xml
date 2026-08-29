@@ -12,6 +12,7 @@
                 <field name="is_required"/>
                 <field name="set_default"/>
                 <field name="default_value"/>
+                <field name="notify_message"/>
                 <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
@@ -46,6 +47,7 @@
                                    invisible="not set_default or field_ttype != 'boolean'"/>
                             <field name="default_value"
                                    invisible="not set_default or field_ttype in ('many2one', 'boolean')"/>
+                            <field name="notify_message" invisible="not set_default"/>
                         </group>
                     </group>
                     <group string="Técnico" groups="base.group_no_one">

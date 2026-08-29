@@ -34,6 +34,11 @@ class MaralvaDefaultRule(models.Model):
 
     is_required = fields.Boolean(string='Obligatorio')
     set_default = fields.Boolean(string='Fijar valor por defecto')
+    notify_message = fields.Boolean(
+        string='Avisar en el chatter', default=True,
+        help='Cuando la regla fija el valor por defecto, deja un mensaje en el chatter '
+             'del registro (visible para sus seguidores), igual que hace Odoo al confirmar '
+             'un pedido. Solo aplica a modelos con chatter (mail.thread).')
     default_value_ref_model = fields.Char(related='field_id.relation', store=True)
     default_value_many2one = fields.Many2oneReference(
         string='Valor por defecto', model_field='default_value_ref_model')
@@ -91,6 +96,18 @@ class MaralvaDefaultRule(models.Model):
             return "datetime.datetime.fromisoformat(%r)" % raw
         return repr(raw)
 
+    def _value_display_expr(self, field_repr):
+        """Expresión Python (código, como texto) que obtiene una representación
+        legible del valor ya asignado, para insertarla en el mensaje del chatter."""
+        ttype = self.field_ttype
+        if ttype == 'many2one':
+            return "(record[%s].display_name if record[%s] else '')" % (field_repr, field_repr)
+        if ttype == 'boolean':
+            return "('Sí' if record[%s] else 'No')" % field_repr
+        if ttype in ('date', 'datetime'):
+            return "(record[%s] and str(record[%s]) or '')" % (field_repr, field_repr)
+        return "record[%s]" % field_repr
+
     def _build_action_code(self):
         self.ensure_one()
         field_repr = repr(self.field_name)
@@ -99,12 +116,25 @@ class MaralvaDefaultRule(models.Model):
         body = []
         if self.set_default:
             body.append('        record[%s] = %s' % (field_repr, self._default_value_literal()))
+        check_lines = []
         if self.is_required:
-            body.append('        if not record[%s]:' % field_repr)
-            body.append('            raise UserError(%r)' % _(
+            check_lines.append('        if not record[%s]:' % field_repr)
+            check_lines.append('            raise UserError(%r)' % _(
                 'El campo "%s" es obligatorio (regla "%s") y no tiene valor.',
                 self.field_id.field_description, self.name,
             ))
+        if self.set_default and self.notify_message:
+            template = _(
+                'Se ha establecido el valor "%%s" en el campo "%s" (regla "%s").'
+            ) % (self.field_id.field_description, self.name)
+            if check_lines:
+                check_lines.append('        elif \'message_ids\' in record._fields:')
+            else:
+                check_lines.append(
+                    '        if record[%s] and \'message_ids\' in record._fields:' % field_repr)
+            check_lines.append('            record.message_post(body=%r %% (%s,))' % (
+                template, self._value_display_expr(field_repr)))
+        body.extend(check_lines)
         if not body:
             body.append('        pass')
         lines.extend(body)
@@ -145,7 +175,7 @@ class MaralvaDefaultRule(models.Model):
         campos_relevantes = {
             'model_id', 'field_id', 'condition_domain', 'is_required',
             'set_default', 'default_value', 'default_value_many2one',
-            'default_value_boolean', 'active',
+            'default_value_boolean', 'notify_message', 'active',
         }
         if campos_relevantes & set(vals):
             self._sync_automation()
