@@ -37,7 +37,15 @@
                         <group string="Acción">
                             <field name="is_required"/>
                             <field name="set_default"/>
-                            <field name="default_value" invisible="not set_default"/>
+                            <field name="field_ttype" invisible="1"/>
+                            <field name="default_value_ref_model" invisible="1"/>
+                            <field name="default_value_many2one"
+                                   invisible="not set_default or field_ttype != 'many2one'"
+                                   options="{'no_create': True}"/>
+                            <field name="default_value_boolean"
+                                   invisible="not set_default or field_ttype != 'boolean'"/>
+                            <field name="default_value"
+                                   invisible="not set_default or field_ttype in ('many2one', 'boolean')"/>
                         </group>
                     </group>
                     <group string="Técnico" groups="base.group_no_one">

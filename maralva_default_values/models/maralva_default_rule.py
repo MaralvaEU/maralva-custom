@@ -34,11 +34,14 @@ class MaralvaDefaultRule(models.Model):
 
     is_required = fields.Boolean(string='Obligatorio')
     set_default = fields.Boolean(string='Fijar valor por defecto')
+    default_value_ref_model = fields.Char(related='field_id.relation', store=True)
+    default_value_many2one = fields.Many2oneReference(
+        string='Valor por defecto', model_field='default_value_ref_model')
+    default_value_boolean = fields.Boolean(string='Valor por defecto (sí/no)')
     default_value = fields.Char(
-        string='Valor por defecto',
-        help='Representación en texto del valor: el id para un campo relación, '
-             'True/False para un booleano, la clave para una selección, '
-             'AAAA-MM-DD para una fecha...')
+        string='Valor por defecto (texto)',
+        help='Representación en texto del valor: la clave para una selección, '
+             'AAAA-MM-DD para una fecha, AAAA-MM-DD HH:MM:SS para fecha y hora...')
 
     automation_id = fields.Many2one(
         'base.automation', string='Automatización generada', readonly=True, copy=False)
@@ -70,20 +73,22 @@ class MaralvaDefaultRule(models.Model):
         """Representación Python (como texto) del valor por defecto, casteada
         según el tipo del campo, para insertarla en el código generado."""
         self.ensure_one()
+        ttype = self.field_ttype
+        if ttype == 'many2one':
+            return repr(int(self.default_value_many2one)) if self.default_value_many2one else 'False'
+        if ttype == 'boolean':
+            return 'True' if self.default_value_boolean else 'False'
         raw = (self.default_value or '').strip()
         if not raw:
             return 'False'
-        ttype = self.field_ttype
-        if ttype == 'boolean':
-            return 'True' if raw.lower() in ('1', 'true', 'sí', 'si', 'yes') else 'False'
-        if ttype in ('integer', 'many2one'):
+        if ttype == 'integer':
             return repr(int(raw))
         if ttype in ('float', 'monetary'):
             return repr(float(raw))
         if ttype == 'date':
-            return "fields.Date.to_date(%r)" % raw
+            return "datetime.date.fromisoformat(%r)" % raw
         if ttype == 'datetime':
-            return "fields.Datetime.to_datetime(%r)" % raw
+            return "datetime.datetime.fromisoformat(%r)" % raw
         return repr(raw)
 
     def _build_action_code(self):
@@ -139,7 +144,8 @@ class MaralvaDefaultRule(models.Model):
         res = super().write(vals)
         campos_relevantes = {
             'model_id', 'field_id', 'condition_domain', 'is_required',
-            'set_default', 'default_value', 'active',
+            'set_default', 'default_value', 'default_value_many2one',
+            'default_value_boolean', 'active',
         }
         if campos_relevantes & set(vals):
             self._sync_automation()
