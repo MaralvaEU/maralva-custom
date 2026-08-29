@@ -13,7 +13,11 @@ class MaralvaDefaultRule(models.Model):
     _description = 'Regla condicional de campo obligatorio / valor por defecto'
     _order = 'model_id, sequence, id'
 
-    name = fields.Char(string='Descripción', compute='_compute_name', store=True)
+    name = fields.Char(
+        string='Descripción', compute='_compute_name', store=True, readonly=False,
+        help='Se rellena automáticamente a partir del modelo, el campo y la acción, pero se '
+             'puede editar a mano -- útil para distinguir varias reglas sobre el mismo campo '
+             'que solo se diferencian por la condición (ej. una posición fiscal por país).')
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
 
