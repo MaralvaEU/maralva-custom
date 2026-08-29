@@ -72,9 +72,9 @@
 
     <menuitem id="menu_maralva_migration_root"
         name="Migraciones Maralva"
-        parent="base.menu_custom"
+        parent="maralva_default_values.menu_maralva_root"
         groups="base.group_system"
-        sequence="120"/>
+        sequence="20"/>
 
     <menuitem id="menu_maralva_migration_batch"
         name="Lotes de migración"

@@ -7,6 +7,7 @@
     'category': 'Technical Settings',
     'depends': [
         'base',
+        'maralva_default_values',
     ],
     'data': [
         'security/ir.model.access.csv',
