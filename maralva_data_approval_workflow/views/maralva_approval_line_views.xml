@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_maralva_approval_line_list" model="ir.ui.view">
+        <field name="name">maralva.approval.line.list</field>
+        <field name="model">maralva.approval.line</field>
+        <field name="arch" type="xml">
+            <list string="Aprobaciones pendientes" decoration-warning="state == 'pending'"
+                  decoration-success="state == 'approved'">
+                <field name="subject_id"/>
+                <field name="res_model"/>
+                <field name="record_display_name"/>
+                <field name="state" widget="badge" decoration-warning="state == 'pending'"
+                       decoration-success="state == 'approved'"/>
+                <field name="validated_by"/>
+                <field name="validated_date"/>
+                <button name="action_view_record" type="object" string="Abrir registro" icon="fa-external-link"/>
+                <button name="action_approve" type="object" string="Aprobar" icon="fa-check"
+                        invisible="state == 'approved'" class="btn-link text-success"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_maralva_approval_line" model="ir.actions.act_window">
+        <field name="name">Aprobaciones</field>
+        <field name="res_model">maralva.approval.line</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_pending': 1}</field>
+    </record>
+
+    <record id="view_maralva_approval_line_search" model="ir.ui.view">
+        <field name="name">maralva.approval.line.search</field>
+        <field name="model">maralva.approval.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="subject_id"/>
+                <field name="res_model"/>
+                <filter name="pending" string="Pendientes" domain="[('state', '=', 'pending')]"/>
+                <filter name="approved" string="Aprobadas" domain="[('state', '=', 'approved')]"/>
+                <group name="group_by">
+                    <filter string="Materia" name="group_subject" context="{'group_by': 'subject_id'}"/>
+                    <filter string="Modelo" name="group_model" context="{'group_by': 'res_model'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <menuitem id="menu_maralva_approval_line"
+              name="Aprobaciones"
+              parent="menu_maralva_approval_workflow_root"
+              action="action_maralva_approval_line"
+              sequence="20"/>
+</odoo>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_list_maralva_approval" model="ir.ui.view">
+        <field name="name">res.partner.list.maralva.approval</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <field name="display_name" position="after">
+                <field name="maralva_approval_state" optional="show" widget="badge"
+                       decoration-warning="maralva_approval_state == 'pending'"
+                       decoration-success="maralva_approval_state == 'approved'"
+                       decoration-muted="maralva_approval_state == 'none'"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_partner_form_maralva_approval" model="ir.ui.view">
+        <field name="name">res.partner.form.maralva.approval</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
+                <button name="action_maralva_view_related_documents" type="object"
+                        class="oe_stat_button" icon="fa-link">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Documentos relacionados</span>
+                    </div>
+                </button>
+            </xpath>
+            <notebook position="inside">
+                <page string="Aprobaciones" invisible="maralva_approval_state == 'none'">
+                    <field name="maralva_approval_state" widget="badge"
+                           decoration-warning="maralva_approval_state == 'pending'"
+                           decoration-success="maralva_approval_state == 'approved'"/>
+                    <field name="maralva_approval_line_ids">
+                        <list decoration-warning="state == 'pending'" decoration-success="state == 'approved'">
+                            <field name="subject_id"/>
+                            <field name="state" widget="badge"/>
+                            <field name="validated_by"/>
+                            <field name="validated_date"/>
+                            <button name="action_approve" type="object" string="Aprobar" icon="fa-check"
+                                    invisible="state == 'approved'" class="btn-link text-success"/>
+                        </list>
+                    </field>
+                </page>
+            </notebook>
+        </field>
+    </record>
+</odoo>

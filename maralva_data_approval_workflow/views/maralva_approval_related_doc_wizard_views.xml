@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_maralva_approval_related_doc_wizard_form" model="ir.ui.view">
+        <field name="name">maralva.approval.related.doc.wizard.form</field>
+        <field name="model">maralva.approval.related.doc.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Documentos relacionados">
+                <field name="source_display_name" invisible="1"/>
+                <p>
+                    Documentos que hacen referencia a
+                    <field name="source_display_name" readonly="1" class="oe_inline fw-bold"/>:
+                </p>
+                <field name="line_ids">
+                    <list>
+                        <field name="res_model"/>
+                        <field name="record_display_name"/>
+                        <field name="field_description"/>
+                        <button name="action_open" type="object" string="Abrir" icon="fa-external-link"/>
+                    </list>
+                </field>
+                <footer>
+                    <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_maralva_approval_subject_system,maralva.approval.subject system,model_maralva_approval_subject,base.group_system,1,1,1,1
+access_maralva_approval_subject_field_system,maralva.approval.subject.field system,model_maralva_approval_subject_field,base.group_system,1,1,1,1
+access_maralva_approval_line_system,maralva.approval.line system,model_maralva_approval_line,base.group_system,1,1,1,1
+access_maralva_approval_line_user,maralva.approval.line user,model_maralva_approval_line,base.group_user,1,1,0,0
+access_maralva_approval_related_doc_wizard,maralva.approval.related.doc.wizard user,model_maralva_approval_related_doc_wizard,base.group_user,1,1,1,1
+access_maralva_approval_related_doc_wizard_line,maralva.approval.related.doc.wizard.line user,model_maralva_approval_related_doc_wizard_line,base.group_user,1,1,1,1
