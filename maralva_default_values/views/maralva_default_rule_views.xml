@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_maralva_default_rule_list" model="ir.ui.view">
+        <field name="name">maralva.default.rule.list</field>
+        <field name="model">maralva.default.rule</field>
+        <field name="arch" type="xml">
+            <list string="Campos obligatorios / valores por defecto">
+                <field name="sequence" widget="handle"/>
+                <field name="model_id"/>
+                <field name="field_id"/>
+                <field name="condition_domain"/>
+                <field name="is_required"/>
+                <field name="set_default"/>
+                <field name="default_value"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_maralva_default_rule_form" model="ir.ui.view">
+        <field name="name">maralva.default.rule.form</field>
+        <field name="model">maralva.default.rule</field>
+        <field name="arch" type="xml">
+            <form string="Campo obligatorio / valor por defecto">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Ámbito">
+                            <field name="model_id"/>
+                            <field name="model_name" invisible="1"/>
+                            <field name="field_id"/>
+                            <field name="condition_domain" widget="domain"
+                                   options="{'model': 'model_name'}"/>
+                        </group>
+                        <group string="Acción">
+                            <field name="is_required"/>
+                            <field name="set_default"/>
+                            <field name="default_value" invisible="not set_default"/>
+                        </group>
+                    </group>
+                    <group string="Técnico" groups="base.group_no_one">
+                        <field name="automation_id"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_maralva_default_rule" model="ir.actions.act_window">
+        <field name="name">Campos obligatorios / valores por defecto</field>
+        <field name="res_model">maralva.default.rule</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_maralva_root"
+              name="Maralva"
+              groups="base.group_system"
+              sequence="95"/>
+    <menuitem id="menu_maralva_default_values"
+              name="Campos obligatorios / valores por defecto"
+              parent="menu_maralva_root"
+              action="action_maralva_default_rule"
+              sequence="10"/>
+</odoo>
